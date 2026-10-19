@@ -39,9 +39,9 @@
   function showSetupMessage() {
     const box = ensureModal();
     box.classList.add("open");
-    status("Box import needs the app's secure Box connection configured.");
+    status("Box import is not connected on this deployment yet.");
     document.getElementById("boxImportPicker").innerHTML = "";
-    document.getElementById("boxImportNote").innerHTML = `Configure <code>window.FIELDWISE_BOX_CONFIG</code> with a same-origin <code>tokenUrl</code> and <code>downloadUrl</code>. The token endpoint should return a short-lived, read-only Box access token and optional <code>folder_id</code>. The download endpoint should stream a selected Box file after checking the signed-in user's access. See the setup section in README. Do not put a Box client secret or access token in this frontend.`;
+    document.getElementById("boxImportNote").innerHTML = `This deployment has no Box OAuth token or file-download endpoint configured yet, so the picker cannot sign in or import files. To test real imagery now, close this dialog, choose <b>Add images from this computer</b> in Image intake, then select <b>Run first image locally</b>. A Box app with read-only OAuth plus secure token and download endpoints must be configured before Box imports can work. Never put a Box client secret or long-lived token in the frontend.`;
   }
 
   function loadPickerAssets() {
