@@ -216,7 +216,7 @@ function restoreDemo() {
   document.getElementById("visitedTargets").textContent = "8 targets visited";
   document.getElementById("remainingTargets").textContent = "3 remaining";
   document.getElementById("lastSync").textContent = "Last sync 2 min ago";
-  setGpuState(gpuReady ? "connected" : "demo", gpuReady ? `GPU connected · ${serverHealth.device}` : "Demo mode");
+  setGpuState(gpuReady ? "connected" : "demo", gpuReady ? `Connected · ${modelDeviceLabel(serverHealth.device)}` : "Local model not connected");
   select(selected);
   toast("Sample field restored.");
 }
