@@ -39,3 +39,10 @@ Set the same-origin endpoints in `box-config.js`:
 The picker is Box's Content Picker UI Element. It lists JPEG/PNG files, downloads the selected copies into the mission's current image batch, then runs the existing EXIF GPS check. The Box originals are unchanged. The Codex Box connection is separate from the app's runtime OAuth connection.
 
 Register the app's frontend origin in Box's allowed CORS domains and have an administrator approve the Box platform app if the enterprise requires it. Keep OAuth client credentials and token refresh logic on the backend.
+
+
+## Decision support views
+
+The mission workspace includes a readiness checklist with direct links to intake, processing, review, and robot checks; a priority queue ranked by low confidence, correction status, and unknown ground-location accuracy; a per-weed evidence/history view; and a disagreement workspace for aerial/ground conflicts. Review decisions and original prediction values are retained in browser local storage.
+
+The current model response does not include calibrated location uncertainty, overlap agreement, or crop-distance features. The map halos are labeled illustrative sample spreads. Replay and generated-position simulation are separate modes; Live is disabled until a robot heartbeat and camera service are connected. The history and disagreement examples are marked sample data and must be replaced by paired model/robot events for research reporting.
