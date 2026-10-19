@@ -261,6 +261,7 @@
     if (error) toast("Review decision could not be saved: " + error.message);
   }
 
-  document.getElementById("historyNav")?.addEventListener("click", open);
   window.fieldwiseRunHistory = { open, saveRun, syncReview };
+  const historyButton = document.getElementById("historyNav");
+  if (historyButton) historyButton.onclick = (event) => { event.preventDefault(); open(); };
 })();
