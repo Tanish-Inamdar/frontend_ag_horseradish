@@ -1,4 +1,4 @@
-/* Live inference bridge for field-map-mvp.html. The SSH tunnel stays outside the page. */
+/* Browser-to-local-machine inference bridge. The Vercel page never hosts the model. */
 let gpuReady = false;
 let serverHealth = null;
 
@@ -14,13 +14,13 @@ async function connectGpu(showMessage = true) {
     const response = await fetch(`${gpuApi}/api/health`, { cache: "no-store" });
     if (!response.ok) throw new Error(`GPU service returned ${response.status}`);
     serverHealth = await response.json();
-    gpuReady = Boolean(serverHealth.model_ready) && String(serverHealth.device).startsWith("cuda");
+    gpuReady = Boolean(serverHealth.model_ready);
     if (gpuReady) {
-      setGpuState("connected", `GPU connected · ${serverHealth.device}`);
+      setGpuState("connected", `Model connected · ${serverHealth.device}`);
       if (showMessage) toast(`Connected to ${serverHealth.model} on ${serverHealth.device}`);
     } else if (serverHealth.model_ready) {
-      setGpuState("error", "Model on CPU");
-      if (showMessage) toast("The model is loaded, but CUDA is not active on the Linux host.");
+      setGpuState("error", "Model unavailable");
+      if (showMessage) toast(serverHealth.detail || "The local model is not ready.");
     } else {
       setGpuState("error", "Model not ready");
       if (showMessage) toast(serverHealth.detail || "GPU service is online, but no model is loaded.");
@@ -29,7 +29,7 @@ async function connectGpu(showMessage = true) {
   } catch {
     gpuReady = false;
     setGpuState("error", "GPU offline");
-    if (showMessage) toast(`Cannot reach ${gpuApi}. Start the inference service and SSH tunnel.`);
+    if (showMessage) toast(`Cannot reach ${gpuApi}. Start the inference service on this Mac.`);
     return null;
   }
 }
@@ -77,7 +77,7 @@ function applyModelResult(result, file) {
   document.getElementById("mapMeta").textContent =
     `${result.image.filename} · ${result.image.width.toLocaleString()} × ${result.image.height.toLocaleString()} px`;
   document.getElementById("mapFootLeft").innerHTML =
-    `<i class="online"></i> GPU inference complete <span class="footsep">·</span> ${result.tile_count} image tiles`;
+    `<i class="online"></i> Local model inference complete <span class="footsep">·</span> ${result.tile_count} image tiles`;
   document.getElementById("mapFootRight").textContent =
     "Image pixel coordinates · georeferencing not attached";
 
@@ -97,7 +97,7 @@ function applyModelResult(result, file) {
   selected = weeds[0] || null;
 
   document.getElementById("processedCount").textContent = "1";
-  document.getElementById("processedMeta").textContent = `GPU · ${result.device}`;
+  document.getElementById("processedMeta").textContent = `Local model · ${result.device}`;
   document.getElementById("weedCount").textContent = String(weeds.length);
   document.getElementById("weedMeta").textContent = "model detections";
   document.getElementById("reviewedCount").textContent = "0";
@@ -129,7 +129,7 @@ async function submitImage(file) {
   if (!serverHealth || !gpuReady) {
     const health = await connectGpu(false);
     if (!health || !gpuReady) {
-      toast(health?.model_ready ? "CUDA is not active on the GPU host." : (health?.detail || "Connect to the GPU service first."));
+      toast(health?.model_ready ? (health.detail || "The local model is not ready.") : (health?.detail || "Connect to the GPU service first."));
       return;
     }
   }
@@ -161,7 +161,7 @@ async function submitImage(file) {
     if (!completedJob || completedJob.status !== "completed") {
       throw new Error(completedJob?.error || "Inference timed out.");
     }
-    setGpuState("connected", `GPU connected · ${serverHealth.device}`);
+    setGpuState("connected", `Model connected · ${serverHealth.device}`);
     applyModelResult(completedJob.result, file);
   } catch (error) {
     setGpuState("error", "GPU error");
