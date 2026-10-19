@@ -286,6 +286,7 @@ document.getElementById("demoMode").onclick = restoreDemo;
 document.getElementById("confidenceCutoff").value = String(confidenceCutoff);
 document.getElementById("confidenceCutoff").onchange = (event) => setConfidenceCutoff(event.target.value);
 window.fieldwiseRunLocalImage = submitImage;
+window.fieldwiseSetCurrentRunId = (runId) => { currentRunId = runId; };
 window.fieldwiseRestoreSavedRun = (result, file, runId) => {
   applyModelResult(result, file);
   currentRunId = runId;
