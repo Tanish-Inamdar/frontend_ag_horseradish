@@ -231,6 +231,7 @@ document.getElementById("runOnGpu").onclick = async () => {
 };
 document.getElementById("imageInput").onchange = (event) => submitImage(event.target.files[0]);
 document.getElementById("demoMode").onclick = restoreDemo;
+window.fieldwiseRunLocalImage = submitImage;
 
 document.getElementById("approveBtn").onclick = () => {
   if (!selected) return;
