@@ -235,18 +235,33 @@ window.fieldwiseRunLocalImage = submitImage;
 
 document.getElementById("approveBtn").onclick = () => {
   if (!selected) return;
+  const confirmed = selected;
+  const confirmedId = selected.id;
+  const currentIndex = weeds.indexOf(selected);
+  const wasVerified = selected.status === "Verified";
   selected.status = "Verified";
   select(selected);
   if (liveMode) {
-    const reviewed = Number(document.getElementById("reviewedCount").textContent) + 1;
+    const reviewed = Number(document.getElementById("reviewedCount").textContent) + (wasVerified ? 0 : 1);
     document.getElementById("reviewedCount").textContent = String(reviewed);
     document.getElementById("reviewedMeta").textContent = `of ${weeds.length}`;
     document.getElementById("targetCount").textContent = `${reviewed} / ${weeds.length}`;
     document.getElementById("targetMeta").textContent = "locally approved · not sent";
-  } else {
+  } else if (!wasVerified) {
     document.getElementById("reviewedCount").textContent = String(Number(document.getElementById("reviewedCount").textContent) + 1);
   }
-  toast(`${liveMode ? "Detection " : "Weed #"}${selected.id} confirmed.`);
+
+  const nextPending = [
+    ...weeds.slice(currentIndex + 1),
+    ...weeds.slice(0, currentIndex),
+  ].find((weed) => weed.status !== "Verified" && weed.status !== "Rejected");
+  if (nextPending) {
+    select(nextPending);
+    toast(`${liveMode ? "Detection " : "Weed #"}${confirmedId} confirmed · next candidate selected.`);
+  } else {
+    select(confirmed);
+    toast(`${liveMode ? "Detection " : "Weed #"}${confirmedId} confirmed · review queue complete.`);
+  }
 };
 
 document.getElementById("rejectBtn").onclick = () => {
