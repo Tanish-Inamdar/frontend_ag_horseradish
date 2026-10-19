@@ -2,6 +2,14 @@
 let gpuReady = false;
 let serverHealth = null;
 
+function modelDeviceLabel(device) {
+  const normalized = String(device || "").toLowerCase();
+  if (normalized.startsWith("mps")) return "Apple MPS";
+  if (normalized.startsWith("cuda")) return "NVIDIA CUDA";
+  if (normalized.startsWith("cpu")) return "CPU";
+  return String(device || "unknown device");
+}
+
 function setGpuState(kind, label) {
   const state = document.getElementById("gpuState");
   state.className = `gpuState ${kind}`;
@@ -16,10 +24,10 @@ async function connectGpu(showMessage = true) {
     serverHealth = await response.json();
     gpuReady = Boolean(serverHealth.model_ready);
     if (gpuReady) {
-      setGpuState("connected", `Model connected · ${serverHealth.device}`);
-      if (showMessage) toast(`Connected to ${serverHealth.model} on ${serverHealth.device}`);
+      setGpuState("connected", `Connected · ${modelDeviceLabel(serverHealth.device)}`);
+      if (showMessage) toast(`Connected to ${serverHealth.model} · ${modelDeviceLabel(serverHealth.device)}`);
     } else if (serverHealth.model_ready) {
-      setGpuState("error", "Model unavailable");
+      setGpuState("error", "Model not loaded");
       if (showMessage) toast(serverHealth.detail || "The local model is not ready.");
     } else {
       setGpuState("error", "Model not ready");
@@ -97,7 +105,7 @@ function applyModelResult(result, file) {
   selected = weeds[0] || null;
 
   document.getElementById("processedCount").textContent = "1";
-  document.getElementById("processedMeta").textContent = `Local model · ${result.device}`;
+  document.getElementById("processedMeta").textContent = `${modelDeviceLabel(result.device)} inference`;
   document.getElementById("weedCount").textContent = String(weeds.length);
   document.getElementById("weedMeta").textContent = "model detections";
   document.getElementById("reviewedCount").textContent = "0";
@@ -129,7 +137,7 @@ async function submitImage(file) {
   if (!serverHealth || !gpuReady) {
     const health = await connectGpu(false);
     if (!health || !gpuReady) {
-      toast(health?.model_ready ? (health.detail || "The local model is not ready.") : (health?.detail || "Connect to the GPU service first."));
+      toast(health?.model_ready ? (health.detail || "The local model is not ready.") : (health?.detail || "Start the local model service first."));
       return;
     }
   }
@@ -161,7 +169,7 @@ async function submitImage(file) {
     if (!completedJob || completedJob.status !== "completed") {
       throw new Error(completedJob?.error || "Inference timed out.");
     }
-    setGpuState("connected", `Model connected · ${serverHealth.device}`);
+    setGpuState("connected", `Connected · ${modelDeviceLabel(serverHealth.device)}`);
     applyModelResult(completedJob.result, file);
   } catch (error) {
     setGpuState("error", "GPU error");
