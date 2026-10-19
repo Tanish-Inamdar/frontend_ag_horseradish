@@ -15,17 +15,39 @@ The workspace includes:
 - A simulated robot route replay, labeled as not live
 - Mission summary and downloadable target/results CSVs
 
-## Live GPU inference
+## Run the model on your Mac
 
-The field map's **Connect GPU** and **Run on GPU** controls use the current single-image inference service. Start the service from the model repository and keep an SSH tunnel open:
+The Vercel site hosts the interface. The browser sends the selected image to a local inference service on the same Mac; Vercel does not receive the checkpoint. The field map's **Connect local model** and **Run model** controls use this service.
 
-```sh
-ssh -L 8000:127.0.0.1:8000 <username>@<gpu-host>
-```
+1. Download/unzip the model archive on your Mac and note the full path to its trained `.pt` checkpoint (often `best.pt`). Keep the checkpoint out of Git.
+2. In Terminal, go to the local `ag-group` model repository and create the Mac Python environment:
 
-The frontend calls `http://127.0.0.1:8000`. The mission processing replay and robot replay are sample data; they are not connected to DINOv3 batch processing or a live robot. The current live image result uses pixel coordinates unless a georeferencing transform is added.
+   ```sh
+   cd /Users/tanish/ag-group
+   python3 -m venv .venv-macos
+   source .venv-macos/bin/activate
+   python -m pip install --upgrade pip
+   python -m pip install -r field_map_service/requirements-macos.txt
+   ```
 
-The backend contract and Linux GPU service are in the `ag-group` model repository under `field_map_service/`.
+3. In the same Terminal window, set the checkpoint path and start the local service. Replace `/full/path/to/best.pt` with the actual file path:
+
+   ```sh
+   export FIELDWISE_MODEL_PATH="/full/path/to/best.pt"
+   export FIELDWISE_DEVICE=auto
+   export FIELDWISE_ALLOWED_ORIGINS="https://frontendaghorseradish.vercel.app"
+   python -m uvicorn field_map_service.app:app --host 127.0.0.1 --port 8000
+   ```
+
+   On Apple Silicon, `auto` selects Apple MPS when available and otherwise falls back to CPU. Keep this Terminal window open. The service stays bound to your Mac and is not exposed to the internet.
+
+4. On that same Mac, open [Fieldwise](https://frontendaghorseradish.vercel.app) in Chrome. If Chrome asks whether the site can access devices on your local network, allow it.
+5. Click **Connect local model**. Confirm the status reports the model and device (for example, `mps` or `cpu`).
+6. Click **Run model**, choose a JPEG, PNG, or TIFF image, and review the detections. These are image pixel coordinates, not robot waypoints.
+
+To check service/model status directly, open `http://127.0.0.1:8000/api/health` on the Mac. No SSH tunnel is needed when the browser and model service run on the same Mac. The Linux GPU SSH-tunnel workflow remains possible by starting the service on that host and forwarding port 8000.
+
+The backend contract and inference service are in the `ag-group` model repository under `field_map_service/`.
 
 ## Box image import
 
