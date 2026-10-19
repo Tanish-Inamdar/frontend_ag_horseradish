@@ -1,6 +1,49 @@
 /* Browser-to-local-machine inference bridge. The Vercel page never hosts the model. */
 let gpuReady = false;
 let serverHealth = null;
+let liveRecords = [];
+let confidenceCutoff = Number(localStorage.getItem("fieldwiseConfidenceCutoff")) || 70;
+
+function applyLiveConfidenceCutoff() {
+  if (!liveMode || !liveRecords.length) return;
+  const previousId = selected?.id;
+  const visible = liveRecords.filter((weed) => weed.c >= confidenceCutoff && weed.status !== "Rejected");
+  weeds.splice(0, weeds.length, ...visible);
+  const pending = visible.filter((weed) => weed.status !== "Verified");
+  const belowCutoff = liveRecords.filter((weed) => weed.status !== "Rejected" && weed.c < confidenceCutoff).length;
+  selected = visible.find((weed) => weed.id === previousId) || pending[0] || visible[0] || null;
+
+  document.getElementById("weedCount").textContent = String(visible.length);
+  document.getElementById("weedMeta").textContent = belowCutoff ? `${belowCutoff} below ${confidenceCutoff}% cutoff` : `≥${confidenceCutoff}% confidence`;
+  document.getElementById("reviewedCount").textContent = String(visible.filter((weed) => weed.status === "Verified").length);
+  document.getElementById("reviewedMeta").textContent = `of ${visible.length}`;
+  document.getElementById("queueNum").textContent = String(pending.length);
+  document.getElementById("targetCount").textContent = `${visible.filter((weed) => weed.status === "Verified").length} / ${visible.length}`;
+  document.getElementById("targetMeta").textContent = "locally approved · not sent";
+  document.getElementById("cutoffSummary").textContent = `${pending.length} to review · ${belowCutoff} below cutoff`;
+
+  if (selected) {
+    select(selected);
+  } else {
+    draw();
+    document.getElementById("weedTitle").textContent = liveRecords.length ? "No detections meet cutoff" : "No weeds detected";
+    document.getElementById("weedBadge").textContent = liveRecords.length ? "BELOW CUTOFF" : "CLEAR";
+    document.getElementById("location").textContent = "No candidate locations";
+    document.getElementById("conf").textContent = "—";
+    document.getElementById("confbar").style.width = "0%";
+    document.getElementById("detectionCrop").removeAttribute("src");
+  }
+}
+
+function setConfidenceCutoff(value) {
+  confidenceCutoff = Number(value);
+  localStorage.setItem("fieldwiseConfidenceCutoff", String(confidenceCutoff));
+  const control = document.getElementById("confidenceCutoff");
+  if (control) control.value = String(confidenceCutoff);
+  applyLiveConfidenceCutoff();
+}
+
+window.fieldwiseSetConfidenceCutoff = setConfidenceCutoff;
 
 function modelDeviceLabel(device) {
   const normalized = String(device || "").toLowerCase();
@@ -89,7 +132,7 @@ function applyModelResult(result, file) {
   document.getElementById("mapFootRight").textContent =
     "Image pixel coordinates · georeferencing not attached";
 
-  const liveDetections = result.detections.map((d) => ({
+  liveRecords = result.detections.map((d) => ({
     id: d.id,
     label: d.class_name,
     x: d.center.x * 100,
@@ -101,37 +144,26 @@ function applyModelResult(result, file) {
     bbox: d.bbox_px,
     polygon: d.polygon,
   }));
-  weeds.splice(0, weeds.length, ...liveDetections);
+  weeds.splice(0, weeds.length, ...liveRecords);
   selected = weeds[0] || null;
 
   document.getElementById("processedCount").textContent = "1";
   document.getElementById("processedMeta").textContent = `${modelDeviceLabel(result.device)} inference`;
-  document.getElementById("weedCount").textContent = String(weeds.length);
-  document.getElementById("weedMeta").textContent = "model detections";
   document.getElementById("reviewedCount").textContent = "0";
-  document.getElementById("reviewedMeta").textContent = `of ${weeds.length}`;
-  document.getElementById("queueNum").textContent = String(weeds.length);
   document.getElementById("targetCount").textContent = "0 / 0";
-  document.getElementById("targetMeta").textContent = "not sent to robot";
+  document.getElementById("targetMeta").textContent = "locally approved · not sent";
   document.getElementById("robotLink").textContent = "Robot not connected to this prototype";
   document.getElementById("missionSummary").textContent = "Mission: survey review only";
   document.getElementById("visitedTargets").textContent = "No robot targets sent";
   document.getElementById("remainingTargets").textContent = "Awaiting georeferencing";
   document.getElementById("lastSync").textContent = "Inference just completed";
 
-  if (selected) {
-    select(selected);
-  } else {
-    draw();
-    document.getElementById("weedTitle").textContent = "No weeds detected";
-    document.getElementById("weedBadge").textContent = "CLEAR";
-    document.getElementById("location").textContent = "No candidate locations";
-    document.getElementById("conf").textContent = "—";
-    document.getElementById("confbar").style.width = "0%";
-  }
-  toast(`${weeds.length} detections returned from ${result.model}`);
+  const cutoffBar = document.getElementById("confidenceCutoffBar");
+  cutoffBar.hidden = false;
+  document.getElementById("confidenceCutoff").value = String(confidenceCutoff);
+  applyLiveConfidenceCutoff();
+  toast(`${weeds.length} detections at or above ${confidenceCutoff}% confidence · ${liveRecords.length - weeds.length} below cutoff`);
 }
-
 async function submitImage(file) {
   if (!file) return;
   if (!serverHealth || !gpuReady) {
@@ -186,6 +218,8 @@ function restoreDemo() {
   liveResult = null;
   liveImageMeta = null;
   liveImageFile = null;
+  liveRecords = [];
+  document.getElementById("confidenceCutoffBar").hidden = true;
   if (liveImageUrl) URL.revokeObjectURL(liveImageUrl);
   liveImageUrl = null;
   const image = document.getElementById("liveMapImage");
@@ -231,6 +265,8 @@ document.getElementById("runOnGpu").onclick = async () => {
 };
 document.getElementById("imageInput").onchange = (event) => submitImage(event.target.files[0]);
 document.getElementById("demoMode").onclick = restoreDemo;
+document.getElementById("confidenceCutoff").value = String(confidenceCutoff);
+document.getElementById("confidenceCutoff").onchange = (event) => setConfidenceCutoff(event.target.value);
 window.fieldwiseRunLocalImage = submitImage;
 
 document.getElementById("approveBtn").onclick = () => {
@@ -247,6 +283,7 @@ document.getElementById("approveBtn").onclick = () => {
     document.getElementById("reviewedMeta").textContent = `of ${weeds.length}`;
     document.getElementById("targetCount").textContent = `${reviewed} / ${weeds.length}`;
     document.getElementById("targetMeta").textContent = "locally approved · not sent";
+    document.getElementById("queueNum").textContent = String(weeds.filter((weed) => weed.status !== "Verified" && weed.status !== "Rejected").length);
   } else if (!wasVerified) {
     document.getElementById("reviewedCount").textContent = String(Number(document.getElementById("reviewedCount").textContent) + 1);
   }
@@ -266,6 +303,12 @@ document.getElementById("approveBtn").onclick = () => {
 
 document.getElementById("rejectBtn").onclick = () => {
   if (!selected) return;
+  if (liveMode) {
+    selected.status = "Rejected";
+    applyLiveConfidenceCutoff();
+    toast("Candidate dismissed.");
+    return;
+  }
   weeds.splice(weeds.indexOf(selected), 1);
   document.getElementById("weedCount").textContent = String(liveMode ? weeds.length : Number(document.getElementById("weedCount").textContent) - 1);
   if (liveMode) {
