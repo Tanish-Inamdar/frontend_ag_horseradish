@@ -2,6 +2,7 @@
 let gpuReady = false;
 let serverHealth = null;
 let liveRecords = [];
+let currentRunId = null;
 let confidenceCutoff = Number(localStorage.getItem("fieldwiseConfidenceCutoff")) || 70;
 
 function applyLiveConfidenceCutoff() {
@@ -110,7 +111,9 @@ function fitLiveLayers() {
 }
 
 function applyModelResult(result, file) {
+  currentRunId = null;
   liveResult = result;
+  if (!liveResult.model && serverHealth?.model) liveResult.model = serverHealth.model;
   liveImageMeta = result.image;
   liveImageFile = file;
   if (liveImageUrl) URL.revokeObjectURL(liveImageUrl);
@@ -138,7 +141,7 @@ function applyModelResult(result, file) {
     x: d.center.x * 100,
     y: d.center.y * 100,
     c: Math.round(d.confidence * 100),
-    status: "Needs review",
+    status: d.review_status || "Needs review",
     pixelX: d.pixel_center.x,
     pixelY: d.pixel_center.y,
     bbox: d.bbox_px,
@@ -203,6 +206,11 @@ async function submitImage(file) {
     }
     setGpuState("connected", `Connected · ${modelDeviceLabel(serverHealth.device)}`);
     applyModelResult(completedJob.result, file);
+    try {
+      await window.fieldwiseRunHistory?.saveRun(completedJob.result, file, confidenceCutoff);
+    } catch (saveError) {
+      toast("Model finished, but saving the run failed: " + (saveError.message || "unknown error"));
+    }
   } catch (error) {
     setGpuState("error", "GPU error");
     toast(error.message || "Model request failed.");
@@ -255,6 +263,16 @@ function restoreDemo() {
   toast("Sample field restored.");
 }
 
+function persistLiveReview() {
+  if (!liveMode || !liveResult) return;
+  const byId = new Map(liveRecords.map((weed) => [String(weed.id), weed.status]));
+  liveResult.detections = liveResult.detections.map((detection) => ({
+    ...detection,
+    review_status: byId.get(String(detection.id)) || "Needs review",
+  }));
+  window.fieldwiseRunHistory?.syncReview(currentRunId, liveResult.detections);
+}
+
 document.getElementById("connectGpu").onclick = () => connectGpu(true);
 document.getElementById("runOnGpu").onclick = async () => {
   if (!gpuReady) {
@@ -268,6 +286,12 @@ document.getElementById("demoMode").onclick = restoreDemo;
 document.getElementById("confidenceCutoff").value = String(confidenceCutoff);
 document.getElementById("confidenceCutoff").onchange = (event) => setConfidenceCutoff(event.target.value);
 window.fieldwiseRunLocalImage = submitImage;
+window.fieldwiseSetCurrentRunId = (runId) => { currentRunId = runId; };
+window.fieldwiseRestoreSavedRun = (result, file, runId) => {
+  applyModelResult(result, file);
+  currentRunId = runId;
+  toast("Saved prediction run opened.");
+};
 
 document.getElementById("approveBtn").onclick = () => {
   if (!selected) return;
@@ -277,6 +301,7 @@ document.getElementById("approveBtn").onclick = () => {
   const wasVerified = selected.status === "Verified";
   selected.status = "Verified";
   select(selected);
+  persistLiveReview();
   if (liveMode) {
     const reviewed = Number(document.getElementById("reviewedCount").textContent) + (wasVerified ? 0 : 1);
     document.getElementById("reviewedCount").textContent = String(reviewed);
@@ -305,6 +330,7 @@ document.getElementById("rejectBtn").onclick = () => {
   if (!selected) return;
   if (liveMode) {
     selected.status = "Rejected";
+    persistLiveReview();
     applyLiveConfidenceCutoff();
     toast("Candidate dismissed.");
     return;

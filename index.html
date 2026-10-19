@@ -21,7 +21,7 @@
 </head>
 <body>
 <div class="app">
-  <header class="top"><div class="brand"><div class="brandmark">⌁</div><span>Fieldwise<small>PRECISION FIELD OPS</small></span></div><nav class="mainnav"><button class="navactive">Overview</button><button id="missionsNav">Missions</button><button id="reviewNav">Review queue <i>26</i></button></nav><div class="topright"><span class="season">2025 GROWING SEASON</span><button class="fieldpick" id="fieldPick">Field 7&nbsp;⌄</button><div class="avatar">T</div></div></header>
+  <header class="top"><div class="brand"><div class="brandmark">⌁</div><span>Fieldwise<small>PRECISION FIELD OPS</small></span></div><nav class="mainnav"><button class="navactive">Overview</button><button id="historyNav">Past runs</button><button id="missionsNav">Missions</button><button id="reviewNav">Review queue <i>26</i></button></nav><div class="topright"><span class="season">2025 GROWING SEASON</span><button class="fieldpick" id="fieldPick">Field 7&nbsp;⌄</button><div class="avatar">T</div></div></header>
   <main class="main">
     <div class="heading"><div><div class="eyebrow">FIELD OVERVIEW <span class="crumb">/</span> WEED DETECTION</div><h1>North block <span class="fieldid">Field 07</span></h1><div class="sub">Last flight <b>Jul 10, 2025</b><span class="bullet">•</span>Sweet potato<span class="bullet">•</span>12.4 hectares</div></div><div class="actions"><button class="btn" id="reviewBtn">Review queue <span id="queueNum">26</span></button><button class="btn primary" id="missionBtn"><span class="plus">＋</span> Plan robot mission</button></div></div>
     <div class="flow"><div class="flowstep done"><i>✓</i><span>Flight uploaded</span></div><div class="flowline done"></div><div class="flowstep current"><i>2</i><span>Review detections</span></div><div class="flowline"></div><div class="flowstep"><i>3</i><span>Robot mission</span></div><div class="flowline"></div><div class="flowstep"><i>4</i><span>Results</span></div><span class="sampletag">DEMO DATA</span></div>
@@ -42,6 +42,7 @@
 document.getElementById('reviewNav').onclick=()=>toast('Review queue · 26 candidates need attention');document.getElementById('missionsNav').onclick=()=>toast('Missions · Latest flight: Jul 10, 2025');
 </script>
 <script src="field-map-live.js"></script>
+<script src="run-history.js"></script>
 <script src="mission-control.js"></script>
 <script src="decision-support.js"></script>
 <script src="box-config.js"></script>

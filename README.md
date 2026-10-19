@@ -68,3 +68,15 @@ Register the app's frontend origin in Box's allowed CORS domains and have an adm
 The mission workspace includes a readiness checklist with direct links to intake, processing, review, and robot checks; a priority queue ranked by low confidence, correction status, and unknown ground-location accuracy; a per-weed evidence/history view; and a disagreement workspace for aerial/ground conflicts. Review decisions and original prediction values are retained in browser local storage.
 
 The current model response does not include calibrated location uncertainty, overlap agreement, or crop-distance features. The map halos are labeled illustrative sample spreads. Replay and generated-position simulation are separate modes; Live is disabled until a robot heartbeat and camera service are connected. The history and disagreement examples are marked sample data and must be replaced by paired model/robot events for research reporting.
+
+## Saved prediction runs
+
+The field map can save live local-model predictions to Supabase and reopen them from **Past runs**. Inference still runs on the user's Mac; the Vercel function at `/api/supabase-config` returns only the Supabase URL and publishable/anonymous key to the browser. The service-role key is never sent to the browser.
+
+Setup:
+
+1. Run `supabase/migrations/202610190001_prediction_runs.sql` in the SQL Editor of the Supabase project linked to this Vercel project. It creates the run table, private image bucket, and per-user row/storage policies.
+2. In Supabase Authentication → URL Configuration, set the Site URL to `https://frontendaghorseradish.vercel.app` and allow that URL as a redirect.
+3. Open the app, choose **Past runs**, and create an account or sign in before running the model.
+
+Each record stores the source filename, model/device, image dimensions, confidence threshold, raw detections, and review decisions. Source images up to the Supabase Free per-file limit (50 MB) are stored privately; for a larger image, detection results still save but the original image is not copied, so it cannot be reopened from history. Keep large source imagery in Box.
