@@ -5,13 +5,13 @@ let liveRecords = [];
 let confidenceCutoff = Number(localStorage.getItem("fieldwiseConfidenceCutoff")) || 70;
 
 function applyLiveConfidenceCutoff() {
-  if (!liveMode || !liveRecords.length) return;
+  if (!liveMode) return;
   const previousId = selected?.id;
   const visible = liveRecords.filter((weed) => weed.c >= confidenceCutoff && weed.status !== "Rejected");
   weeds.splice(0, weeds.length, ...visible);
   const pending = visible.filter((weed) => weed.status !== "Verified");
   const belowCutoff = liveRecords.filter((weed) => weed.status !== "Rejected" && weed.c < confidenceCutoff).length;
-  selected = visible.find((weed) => weed.id === previousId) || pending[0] || visible[0] || null;
+  selected = visible.find((weed) => weed.id === previousId && weed.status !== "Verified") || pending[0] || visible.find((weed) => weed.id === previousId) || visible[0] || null;
 
   document.getElementById("weedCount").textContent = String(visible.length);
   document.getElementById("weedMeta").textContent = belowCutoff ? `${belowCutoff} below ${confidenceCutoff}% cutoff` : `≥${confidenceCutoff}% confidence`;
