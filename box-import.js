@@ -109,8 +109,13 @@
     status("Connecting to Box…");
     try {
       const tokenResponse = await fetch(config.tokenUrl, { credentials: "include", cache: "no-store" });
-      if (!tokenResponse.ok) throw new Error(`Box connection returned ${tokenResponse.status}.`);
-      const tokenPayload = await tokenResponse.json();
+      const tokenPayload = await tokenResponse.json().catch(() => ({}));
+      if (tokenResponse.status === 401) {
+        status("Sign in to Box to continue…");
+        window.location.assign(tokenPayload.authorize_url || config.authUrl || "/api/box/auth");
+        return;
+      }
+      if (!tokenResponse.ok) throw new Error(tokenPayload.error || `Box connection returned ${tokenResponse.status}.`);
       const accessToken = tokenPayload.access_token;
       if (!accessToken) throw new Error("The Box token endpoint did not return an access_token.");
       await loadPickerAssets();
