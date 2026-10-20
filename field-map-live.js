@@ -2,42 +2,45 @@
 let gpuReady = false;
 let serverHealth = null;
 let liveRecords = [];
+let liveImages = [];
+let liveImageIndex = 0;
 let currentRunId = null;
 let confidenceCutoff = Number(localStorage.getItem("fieldwiseConfidenceCutoff")) || 70;
 
 function applyLiveConfidenceCutoff() {
   if (!liveMode) return;
   const previousId = selected?.id;
-  const visible = liveRecords.filter((weed) => weed.c >= confidenceCutoff && weed.status !== "Rejected");
+  const visible = liveRecords.filter((weed) => weed.imageIndex === liveImageIndex && weed.status !== "Rejected");
+  const pending = liveRecords.filter((weed) => weed.status === "Needs review");
+  const belowCutoff = pending.length;
+  const highConfidence = liveRecords.filter((weed) => weed.status === "High confidence").length;
   weeds.splice(0, weeds.length, ...visible);
-  const pending = visible.filter((weed) => weed.status !== "Verified");
-  const belowCutoff = liveRecords.filter((weed) => weed.status !== "Rejected" && weed.c < confidenceCutoff).length;
-  selected = visible.find((weed) => weed.id === previousId && weed.status !== "Verified") || pending[0] || visible.find((weed) => weed.id === previousId) || visible[0] || null;
+  selected = visible.find((weed) => weed.id === previousId) || visible.find((weed) => weed.status === "Needs review") || visible[0] || null;
 
-  document.getElementById("weedCount").textContent = String(visible.length);
-  document.getElementById("weedMeta").textContent = belowCutoff ? `${belowCutoff} below ${confidenceCutoff}% cutoff` : `≥${confidenceCutoff}% confidence`;
-  document.getElementById("reviewedCount").textContent = String(visible.filter((weed) => weed.status === "Verified").length);
-  document.getElementById("reviewedMeta").textContent = `of ${visible.length}`;
+  document.getElementById("weedCount").textContent = String(liveRecords.filter((weed) => weed.status !== "Rejected").length);
+  document.getElementById("weedMeta").textContent = `${belowCutoff} below ${confidenceCutoff}% · ${highConfidence} high confidence`;
+  const reviewed = liveRecords.filter((weed) => weed.status === "Verified" || weed.status === "Rejected").length;
+  document.getElementById("reviewedCount").textContent = String(reviewed);
+  document.getElementById("reviewedMeta").textContent = `of ${liveRecords.length}`;
   document.getElementById("queueNum").textContent = String(pending.length);
-  document.getElementById("targetCount").textContent = `${visible.filter((weed) => weed.status === "Verified").length} / ${visible.length}`;
+  document.getElementById("targetCount").textContent = `${liveRecords.filter((weed) => weed.status === "Verified").length} / ${liveRecords.filter((weed) => weed.status !== "Rejected").length}`;
   document.getElementById("targetMeta").textContent = "locally approved · not sent";
-  document.getElementById("cutoffSummary").textContent = `${pending.length} to review · ${belowCutoff} below cutoff`;
+  document.getElementById("cutoffSummary").textContent = `${pending.length} to review · ${highConfidence} high confidence`;
 
-  if (selected) {
-    select(selected);
-  } else {
+  if (selected) select(selected);
+  else {
     draw();
-    document.getElementById("weedTitle").textContent = liveRecords.length ? "No detections meet cutoff" : "No weeds detected";
-    document.getElementById("weedBadge").textContent = liveRecords.length ? "BELOW CUTOFF" : "CLEAR";
+    document.getElementById("weedTitle").textContent = "No detections in this image";
+    document.getElementById("weedBadge").textContent = "CLEAR";
     document.getElementById("location").textContent = "No candidate locations";
     document.getElementById("conf").textContent = "—";
     document.getElementById("confbar").style.width = "0%";
     document.getElementById("detectionCrop").removeAttribute("src");
   }
 }
-
 function setConfidenceCutoff(value) {
   confidenceCutoff = Number(value);
+  liveRecords.forEach((weed) => { if (weed.status === "Needs review" || weed.status === "High confidence") weed.status = weed.c < confidenceCutoff ? "Needs review" : "High confidence"; });
   localStorage.setItem("fieldwiseConfidenceCutoff", String(confidenceCutoff));
   const control = document.getElementById("confidenceCutoff");
   if (control) control.value = String(confidenceCutoff);
@@ -110,115 +113,166 @@ function fitLiveLayers() {
   if (selected) drawCrop(selected);
 }
 
-function applyModelResult(result, file) {
-  currentRunId = null;
-  liveResult = result;
-  if (!liveResult.model && serverHealth?.model) liveResult.model = serverHealth.model;
-  liveImageMeta = result.image;
-  liveImageFile = file;
-  if (liveImageUrl) URL.revokeObjectURL(liveImageUrl);
-  liveImageUrl = URL.createObjectURL(file);
+function updateImageNavigator() {
+  let nav = document.getElementById("liveImageNavigator");
+  if (!nav) {
+    nav = document.createElement("div");
+    nav.id = "liveImageNavigator";
+    nav.className = "liveImageNavigator";
+    nav.innerHTML = '<button type="button" aria-label="Previous image">‹</button><span></span><div class="liveThumbs"></div><button type="button" aria-label="Next image">›</button>';
+    document.querySelector(".mapfoot").before(nav);
+  }
+  nav.hidden = !liveMode || liveImages.length < 2;
+  if (nav.hidden) return;
+  nav.querySelector("span").textContent = `Image ${liveImageIndex + 1} of ${liveImages.length}`;
+  nav.querySelector(".liveThumbs").innerHTML = liveImages.map((item, i) => `<button type="button" class="liveThumb ${i === liveImageIndex ? "active" : ""}" data-image-index="${i}" title="${escapeHtml(item.file.name)}"><img src="${item.url}" alt=""><small>${item.result ? "✓" : "!"}</small></button>`).join("");
+  const controls = nav.querySelectorAll(":scope > button");
+  controls[0].disabled = liveImageIndex === 0;
+  controls[1].disabled = liveImageIndex >= liveImages.length - 1;
+  controls[0].onclick = () => showLiveImage(liveImageIndex - 1);
+  controls[1].onclick = () => showLiveImage(liveImageIndex + 1);
+  nav.querySelectorAll("[data-image-index]").forEach((button) => button.onclick = () => showLiveImage(Number(button.dataset.imageIndex)));
+}
 
+function showLiveImage(index) {
+  if (index < 0 || index >= liveImages.length) return;
+  liveImageIndex = index;
+  const item = liveImages[index];
+  liveResult = item.result || null;
+  liveImageMeta = item.result?.image || { filename: item.file.name, width: 1, height: 1 };
+  liveImageFile = item.file;
+  liveImageUrl = item.url;
   const image = document.getElementById("liveMapImage");
-  image.onload = fitLiveLayers;
-  image.onerror = () => toast("Model finished, but this browser cannot preview that image. Use JPEG or PNG.");
-  image.src = liveImageUrl;
+  image.onload = () => {
+    if (!item.result) liveImageMeta = { filename: item.file.name, width: image.naturalWidth, height: image.naturalHeight };
+    fitLiveLayers();
+  };
+  image.onerror = () => toast("This image could not be previewed in the browser.");
+  image.src = item.url;
+  document.getElementById("mapMeta").textContent = item.result
+    ? `${liveImageMeta.filename} · ${liveImageMeta.width.toLocaleString()} × ${liveImageMeta.height.toLocaleString()} px`
+    : `${item.file.name} · inference failed`;
+  document.getElementById("mapFootLeft").innerHTML = item.error
+    ? `<i class="online" style="background:#c76d5a"></i> Inference failed <span class="footsep">·</span> ${escapeHtml(item.error)}`
+    : `<i class="online"></i> ${liveImages.filter(entry => entry.result).length} images processed <span class="footsep">·</span> viewing ${index + 1} of ${liveImages.length}`;
+  document.querySelector(".legend").innerHTML = '<div class="leg"><i class="dot"></i>Needs review (&lt;70%)</div><div class="leg"><i class="dot green"></i>High confidence / verified</div>';
+  updateImageNavigator();
+  applyLiveConfidenceCutoff();
+}
+
+function applyBatchResults(results, failures, submittedFiles) {
+  liveImages.forEach((item) => URL.revokeObjectURL(item.url));
+  const succeeded = new Map(results.map((entry) => [entry.file, entry]));
+  const failed = new Map(failures.map((entry) => [entry.file, entry]));
+  liveImages = submittedFiles.map((file) => ({ ...succeeded.get(file), ...failed.get(file), file, url: URL.createObjectURL(file) }));
+  liveImageIndex = 0;
+  liveRecords = [];
+  liveImages.forEach((item, imageIndex) => {
+    if (!item.result) return;
+    item.result.detections.forEach((detection, detectionIndex) => {
+      const confidence = Math.round(detection.confidence * 100);
+      liveRecords.push({
+        id: `W-${String(liveRecords.length + 1).padStart(4, "0")}`,
+        sourceDetectionId: detection.id,
+        label: detection.class_name,
+        x: detection.center.x * 100,
+        y: detection.center.y * 100,
+        c: confidence,
+        status: detection.review_status === "Verified" ? "Verified" : detection.review_status === "Rejected" ? "Rejected" : confidence < confidenceCutoff ? "Needs review" : "High confidence",
+        pixelX: detection.pixel_center.x,
+        pixelY: detection.pixel_center.y,
+        bbox: detection.bbox_px,
+        polygon: detection.polygon,
+        imageIndex,
+        detectionIndex,
+        runId: item.runId,
+      });
+    });
+  });
   liveMode = true;
   document.getElementById("mapstage").classList.add("liveMode");
   document.querySelector(".detail").classList.add("liveRecord");
-  document.querySelector(".maplabel").innerHTML = "<i></i> UPLOADED IMAGE";
+  document.querySelector(".maplabel").innerHTML = "<i></i> PROCESSED FLIGHT IMAGES";
   document.querySelector(".sampletag").textContent = "LIVE MODEL";
-  document.getElementById("mapMeta").textContent =
-    `${result.image.filename} · ${result.image.width.toLocaleString()} × ${result.image.height.toLocaleString()} px`;
-  document.getElementById("mapFootLeft").innerHTML =
-    `<i class="online"></i> Local model inference complete <span class="footsep">·</span> ${result.tile_count} image tiles`;
-  document.getElementById("mapFootRight").textContent =
-    "Image pixel coordinates · georeferencing not attached";
-
-  liveRecords = result.detections.map((d) => ({
-    id: d.id,
-    label: d.class_name,
-    x: d.center.x * 100,
-    y: d.center.y * 100,
-    c: Math.round(d.confidence * 100),
-    status: d.review_status || "Needs review",
-    pixelX: d.pixel_center.x,
-    pixelY: d.pixel_center.y,
-    bbox: d.bbox_px,
-    polygon: d.polygon,
-  }));
-  weeds.splice(0, weeds.length, ...liveRecords);
-  selected = weeds[0] || null;
-
-  document.getElementById("processedCount").textContent = "1";
-  document.getElementById("processedMeta").textContent = `${modelDeviceLabel(result.device)} inference`;
-  document.getElementById("reviewedCount").textContent = "0";
-  document.getElementById("targetCount").textContent = "0 / 0";
-  document.getElementById("targetMeta").textContent = "locally approved · not sent";
   document.getElementById("robotLink").textContent = "Robot not connected to this prototype";
   document.getElementById("missionSummary").textContent = "Mission: survey review only";
   document.getElementById("visitedTargets").textContent = "No robot targets sent";
   document.getElementById("remainingTargets").textContent = "Awaiting georeferencing";
   document.getElementById("lastSync").textContent = "Inference just completed";
-
+  document.getElementById("processedCount").textContent = String(results.length);
+  document.getElementById("processedMeta").textContent = failures.length ? `${failures.length} failed · ${modelDeviceLabel(serverHealth?.device)}` : `${modelDeviceLabel(serverHealth?.device)} inference`;
   const cutoffBar = document.getElementById("confidenceCutoffBar");
   cutoffBar.hidden = false;
   document.getElementById("confidenceCutoff").value = String(confidenceCutoff);
-  applyLiveConfidenceCutoff();
-  toast(`${weeds.length} detections at or above ${confidenceCutoff}% confidence · ${liveRecords.length - weeds.length} below cutoff`);
+  showLiveImage(0);
+  if (liveRecords.length) {
+    selected = liveRecords.find((weed) => weed.status === "Needs review") || liveRecords[0];
+    if (selected.imageIndex !== liveImageIndex) showLiveImage(selected.imageIndex);
+    select(selected);
+  }
+  window.fieldwiseBatchComplete?.({ images: results.length, submitted: submittedFiles.length, failed: failures.length, detections: liveRecords.length, belowCutoff: liveRecords.filter(weed => weed.status === "Needs review").length, cutoff: confidenceCutoff, model: serverHealth?.model || "Connected model" });
+  toast(`${results.length} of ${submittedFiles.length} images processed · ${liveRecords.filter(weed => weed.status === "Needs review").length} candidates below ${confidenceCutoff}% need review.`);
 }
-async function submitImage(file) {
-  if (!file) return;
+
+function applyModelResult(result, file) {
+  applyBatchResults([{ file, result }], [], [file]);
+}
+
+async function processOneImage(file) {
+  const form = new FormData();
+  form.append("file", file, file.name);
+  const response = await fetch(`${gpuApi}/api/jobs`, { method: "POST", body: form });
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    throw new Error(payload.detail || `Upload failed (${response.status})`);
+  }
+  const job = await response.json();
+  let completedJob;
+  for (let attempt = 0; attempt < 1800; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    const statusResponse = await fetch(`${gpuApi}/api/jobs/${job.id}`, { cache: "no-store" });
+    if (!statusResponse.ok) throw new Error("Could not read inference job status.");
+    completedJob = await statusResponse.json();
+    if (completedJob.status === "completed" || completedJob.status === "failed") break;
+  }
+  if (!completedJob || completedJob.status !== "completed") throw new Error(completedJob?.error || "Inference timed out.");
+  return completedJob.result;
+}
+
+async function submitImage(input) {
+  const files = [...(input instanceof File ? [input] : Array.from(input || []))].filter(Boolean);
+  if (!files.length) return;
   if (!serverHealth || !gpuReady) {
     const health = await connectGpu(false);
     if (!health || !gpuReady) {
-      toast(health?.model_ready ? (health.detail || "The local model is not ready.") : (health?.detail || "Start the local model service first."));
+      toast(health?.detail || "Start the local model service first.");
       return;
     }
   }
-
   const runButton = document.getElementById("runOnGpu");
   runButton.disabled = true;
-  runButton.textContent = "Uploading…";
-  setGpuState("working", "Uploading image…");
-  try {
-    const form = new FormData();
-    form.append("file", file, file.name);
-    const response = await fetch(`${gpuApi}/api/jobs`, { method: "POST", body: form });
-    if (!response.ok) {
-      const payload = await response.json().catch(() => ({}));
-      throw new Error(payload.detail || `Upload failed (${response.status})`);
-    }
-    const job = await response.json();
-    setGpuState("working", "Model running…");
-    runButton.textContent = "Processing…";
-
-    let completedJob;
-    for (let attempt = 0; attempt < 1800; attempt += 1) {
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      const statusResponse = await fetch(`${gpuApi}/api/jobs/${job.id}`, { cache: "no-store" });
-      if (!statusResponse.ok) throw new Error("Could not read inference job status.");
-      completedJob = await statusResponse.json();
-      if (completedJob.status === "completed" || completedJob.status === "failed") break;
-    }
-    if (!completedJob || completedJob.status !== "completed") {
-      throw new Error(completedJob?.error || "Inference timed out.");
-    }
-    setGpuState("connected", `Connected · ${modelDeviceLabel(serverHealth.device)}`);
-    applyModelResult(completedJob.result, file);
+  const results = [], failures = [];
+  for (let index = 0; index < files.length; index += 1) {
+    const file = files[index];
+    runButton.textContent = `${index + 1}/${files.length}…`;
+    setGpuState("working", `Processing ${index + 1} of ${files.length} · ${file.name}`);
+    document.getElementById("mapFootLeft").textContent = `Model inference · ${index + 1} of ${files.length} · ${file.name}`;
     try {
-      await window.fieldwiseRunHistory?.saveRun(completedJob.result, file, confidenceCutoff);
-    } catch (saveError) {
-      toast("Model finished, but saving the run failed: " + (saveError.message || "unknown error"));
+      const result = await processOneImage(file);
+      if (!result.model && serverHealth?.model) result.model = serverHealth.model;
+      results.push({ file, result });
+      try { const savedRunId = await window.fieldwiseRunHistory?.saveRun(result, file, confidenceCutoff); if (savedRunId) results[results.length - 1].runId = savedRunId; }
+      catch (saveError) { toast("Model completed, but saving failed: " + (saveError.message || "unknown error")); }
+    } catch (error) {
+      failures.push({ file, error: error.message || "Inference failed." });
     }
-  } catch (error) {
-    setGpuState("error", "GPU error");
-    toast(error.message || "Model request failed.");
-  } finally {
-    runButton.disabled = false;
-    runButton.textContent = "Run on GPU";
-    document.getElementById("imageInput").value = "";
   }
+  runButton.disabled = false;
+  runButton.textContent = "Run model";
+  document.getElementById("imageInput").value = "";
+  setGpuState("connected", `Connected · ${modelDeviceLabel(serverHealth.device)}`);
+  applyBatchResults(results, failures, files);
+  if (failures.length) toast(`${failures.length} image(s) failed. They remain in the image navigator for inspection.`);
 }
 
 function restoreDemo() {
@@ -227,6 +281,10 @@ function restoreDemo() {
   liveImageMeta = null;
   liveImageFile = null;
   liveRecords = [];
+  liveImages.forEach((item) => URL.revokeObjectURL(item.url));
+  liveImages = [];
+  liveImageIndex = 0;
+  document.getElementById("liveImageNavigator")?.remove();
   document.getElementById("confidenceCutoffBar").hidden = true;
   if (liveImageUrl) URL.revokeObjectURL(liveImageUrl);
   liveImageUrl = null;
@@ -264,15 +322,15 @@ function restoreDemo() {
 }
 
 function persistLiveReview() {
-  if (!liveMode || !liveResult) return;
-  const byId = new Map(liveRecords.map((weed) => [String(weed.id), weed.status]));
-  liveResult.detections = liveResult.detections.map((detection) => ({
-    ...detection,
-    review_status: byId.get(String(detection.id)) || "Needs review",
-  }));
-  window.fieldwiseRunHistory?.syncReview(currentRunId, liveResult.detections);
+  if (!liveMode) return;
+  const item = liveImages[liveImageIndex];
+  if (!item?.result) return;
+  item.result.detections = item.result.detections.map((detection, detectionIndex) => {
+    const record = liveRecords.find((weed) => weed.imageIndex === liveImageIndex && weed.detectionIndex === detectionIndex);
+    return { ...detection, review_status: record?.status || "Needs review" };
+  });
+  window.fieldwiseRunHistory?.syncReview(item.runId || currentRunId, item.result.detections);
 }
-
 document.getElementById("connectGpu").onclick = () => connectGpu(true);
 document.getElementById("runOnGpu").onclick = async () => {
   if (!gpuReady) {
@@ -281,7 +339,7 @@ document.getElementById("runOnGpu").onclick = async () => {
   }
   document.getElementById("imageInput").click();
 };
-document.getElementById("imageInput").onchange = (event) => submitImage(event.target.files[0]);
+document.getElementById("imageInput").onchange = (event) => submitImage(event.target.files);
 document.getElementById("demoMode").onclick = restoreDemo;
 document.getElementById("confidenceCutoff").value = String(confidenceCutoff);
 document.getElementById("confidenceCutoff").onchange = (event) => setConfidenceCutoff(event.target.value);
@@ -290,6 +348,8 @@ window.fieldwiseSetCurrentRunId = (runId) => { currentRunId = runId; };
 window.fieldwiseRestoreSavedRun = (result, file, runId) => {
   applyModelResult(result, file);
   currentRunId = runId;
+  liveImages[0].runId = runId;
+  liveRecords.forEach((weed) => { weed.runId = runId; });
   toast("Saved prediction run opened.");
 };
 
@@ -297,32 +357,35 @@ document.getElementById("approveBtn").onclick = () => {
   if (!selected) return;
   const confirmed = selected;
   const confirmedId = selected.id;
-  const currentIndex = weeds.indexOf(selected);
-  const wasVerified = selected.status === "Verified";
+  const wasLive = liveMode;
   selected.status = "Verified";
-  select(selected);
-  persistLiveReview();
-  if (liveMode) {
-    const reviewed = Number(document.getElementById("reviewedCount").textContent) + (wasVerified ? 0 : 1);
-    document.getElementById("reviewedCount").textContent = String(reviewed);
-    document.getElementById("reviewedMeta").textContent = `of ${weeds.length}`;
-    document.getElementById("targetCount").textContent = `${reviewed} / ${weeds.length}`;
-    document.getElementById("targetMeta").textContent = "locally approved · not sent";
-    document.getElementById("queueNum").textContent = String(weeds.filter((weed) => weed.status !== "Verified" && weed.status !== "Rejected").length);
-  } else if (!wasVerified) {
-    document.getElementById("reviewedCount").textContent = String(Number(document.getElementById("reviewedCount").textContent) + 1);
+  if (wasLive) {
+    persistLiveReview();
+    const nextPending = liveRecords.find((weed) => weed.status === "Needs review");
+    if (nextPending) {
+      if (nextPending.imageIndex !== liveImageIndex) showLiveImage(nextPending.imageIndex);
+      applyLiveConfidenceCutoff();
+      select(nextPending);
+      toast(`Detection ${confirmedId} confirmed · next low-confidence candidate selected.`);
+    } else {
+      applyLiveConfidenceCutoff();
+      const same = liveRecords.find((weed) => weed.id === confirmedId);
+      if (same) select(same);
+      toast(`Detection ${confirmedId} confirmed · review queue complete.`);
+    }
+    return;
   }
-
-  const nextPending = [
-    ...weeds.slice(currentIndex + 1),
-    ...weeds.slice(0, currentIndex),
-  ].find((weed) => weed.status !== "Verified" && weed.status !== "Rejected");
+  select(selected);
+  document.getElementById("reviewedCount").textContent = String(Number(document.getElementById("reviewedCount").textContent) + 1);
+  const currentIndex = weeds.indexOf(confirmed);
+  const nextPending = [...weeds.slice(currentIndex + 1), ...weeds.slice(0, currentIndex)]
+    .find((weed) => weed.status !== "Verified" && weed.status !== "Rejected");
   if (nextPending) {
     select(nextPending);
-    toast(`${liveMode ? "Detection " : "Weed #"}${confirmedId} confirmed · next candidate selected.`);
+    toast(`Weed #${confirmedId} confirmed · next candidate selected.`);
   } else {
     select(confirmed);
-    toast(`${liveMode ? "Detection " : "Weed #"}${confirmedId} confirmed · review queue complete.`);
+    toast(`Weed #${confirmedId} confirmed · review queue complete.`);
   }
 };
 
@@ -331,16 +394,15 @@ document.getElementById("rejectBtn").onclick = () => {
   if (liveMode) {
     selected.status = "Rejected";
     persistLiveReview();
+    const nextPending = liveRecords.find((weed) => weed.status === "Needs review");
+    if (nextPending && nextPending.imageIndex !== liveImageIndex) showLiveImage(nextPending.imageIndex);
     applyLiveConfidenceCutoff();
+    if (nextPending) select(nextPending);
     toast("Candidate dismissed.");
     return;
   }
   weeds.splice(weeds.indexOf(selected), 1);
-  document.getElementById("weedCount").textContent = String(liveMode ? weeds.length : Number(document.getElementById("weedCount").textContent) - 1);
-  if (liveMode) {
-    document.getElementById("reviewedMeta").textContent = `of ${weeds.length}`;
-    document.getElementById("queueNum").textContent = String(weeds.length);
-  }
+  document.getElementById("weedCount").textContent = String(Number(document.getElementById("weedCount").textContent) - 1);
   selected = weeds[0] || null;
   if (selected) select(selected);
   else {
@@ -352,5 +414,4 @@ document.getElementById("rejectBtn").onclick = () => {
   }
   toast("Candidate dismissed.");
 };
-
 window.addEventListener("resize", fitLiveLayers);
