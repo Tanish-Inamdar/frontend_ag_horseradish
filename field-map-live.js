@@ -260,6 +260,7 @@ async function submitImage(input) {
   const runButton = document.getElementById("runOnGpu");
   runButton.disabled = true;
   const results = [], failures = [];
+  const batchId = crypto.randomUUID?.() || `batch-${Date.now()}-${Math.random().toString(36).slice(2)}`;
   for (let index = 0; index < files.length; index += 1) {
     const file = files[index];
     runButton.textContent = `${index + 1}/${files.length}…`;
@@ -269,7 +270,7 @@ async function submitImage(input) {
       const result = await processOneImage(file);
       if (!result.model && serverHealth?.model) result.model = serverHealth.model;
       results.push({ file, result });
-      try { const savedRunId = await window.fieldwiseRunHistory?.saveRun(result, file, confidenceCutoff); if (savedRunId) results[results.length - 1].runId = savedRunId; }
+      try { const savedRunId = await window.fieldwiseRunHistory?.saveRun(result, file, confidenceCutoff, { batch_id: batchId, batch_index: index, batch_size: files.length }); if (savedRunId) results[results.length - 1].runId = savedRunId; }
       catch (saveError) { toast("Model completed, but saving failed: " + (saveError.message || "unknown error")); }
     } catch (error) {
       failures.push({ file, error: error.message || "Inference failed." });
@@ -354,6 +355,14 @@ document.getElementById("confidenceCutoff").value = String(confidenceCutoff);
 document.getElementById("confidenceCutoff").onchange = (event) => setConfidenceCutoff(event.target.value);
 window.fieldwiseRunLocalImage = submitImage;
 window.fieldwiseSetCurrentRunId = (runId) => { currentRunId = runId; };
+window.fieldwiseRestoreSavedBatch = (entries) => {
+  const ordered = [...entries].sort((a, b) => (a.batchIndex || 0) - (b.batchIndex || 0));
+  const files = ordered.map((entry) => entry.file);
+  const results = ordered.map((entry) => ({ file: entry.file, result: entry.result, runId: entry.runId }));
+  applyBatchResults(results, [], files);
+  currentRunId = results[0]?.runId || null;
+  toast(`Saved batch opened · ${results.length} images`);
+};
 window.fieldwiseRestoreSavedRun = (result, file, runId) => {
   applyModelResult(result, file);
   currentRunId = runId;

@@ -8,7 +8,7 @@
   let pending = [];
   let initialized = false;
 
-  const css = ".fh-overlay{position:fixed;inset:0;background:#18221dcc;z-index:80;display:none;align-items:center;justify-content:center;padding:18px}.fh-overlay.open{display:flex}.fh-dialog{width:min(760px,100%);max-height:90vh;overflow:auto;background:#f7f8f5;border:1px solid #e3e8df;border-radius:14px;box-shadow:0 24px 80px #0005;color:#202a22}.fh-head{position:sticky;top:0;z-index:2;background:#fff;border-bottom:1px solid #e5e9e1;padding:15px 18px;display:flex;align-items:center;justify-content:space-between}.fh-head h2{margin:0;font-size:17px}.fh-close,.fh-btn{border:1px solid #dce2d8;background:#fff;border-radius:7px;padding:8px 11px;font:600 12px/1.4 Inter,-apple-system,BlinkMacSystemFont,\"Segoe UI\",sans-serif;color:#344236;cursor:pointer}.fh-btn.primary{background:#355f47;color:white;border-color:#355f47}.fh-body{padding:18px}.fh-auth{display:grid;grid-template-columns:1fr 1fr;gap:8px;max-width:520px}.fh-auth input{min-width:0;border:1px solid #dce2d8;border-radius:7px;padding:10px;font:13px/1.4 Inter,-apple-system,BlinkMacSystemFont,\"Segoe UI\",sans-serif}.fh-auth input:first-child{grid-column:span 2}.fh-status{font-size:12px;color:#667464;min-height:20px;margin:0 0 10px}.fh-user{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px}.fh-list{display:grid;gap:8px}.fh-run{background:#fff;border:1px solid #e3e8df;border-radius:9px;padding:12px;display:flex;justify-content:space-between;gap:12px;align-items:center}.fh-run strong{display:block;font-size:12px;overflow-wrap:anywhere}.fh-run small{display:block;margin-top:4px;color:#788274;font-size:10px}.fh-empty{padding:18px;background:#fff;border:1px dashed #ccd5c8;border-radius:9px;color:#6c776a;font-size:12px}.fh-note{font-size:10px;line-height:1.5;color:#7a8578;margin-top:12px}@media(max-width:540px){.fh-auth{grid-template-columns:1fr}.fh-auth input:first-child{grid-column:auto}.fh-run{align-items:flex-start;flex-direction:column}.fh-run .fh-btn{width:100%}}";
+  const css = ".fh-overlay{position:fixed;inset:0;background:#18221dcc;z-index:80;display:none;align-items:center;justify-content:center;padding:18px}.fh-overlay.open{display:flex}.fh-dialog{width:min(760px,100%);max-height:90vh;overflow:auto;background:#f7f8f5;border:1px solid #e3e8df;border-radius:14px;box-shadow:0 24px 80px #0005;color:#202a22}.fh-head{position:sticky;top:0;z-index:2;background:#fff;border-bottom:1px solid #e5e9e1;padding:15px 18px;display:flex;align-items:center;justify-content:space-between}.fh-head h2{margin:0;font-size:17px}.fh-close,.fh-btn{border:1px solid #dce2d8;background:#fff;border-radius:7px;padding:8px 11px;font:600 12px/1.4 Inter,-apple-system,BlinkMacSystemFont,\"Segoe UI\",sans-serif;color:#344236;cursor:pointer}.fh-btn.primary{background:#355f47;color:white;border-color:#355f47}.fh-body{padding:18px}.fh-auth{display:grid;grid-template-columns:1fr 1fr;gap:8px;max-width:520px}.fh-auth input{min-width:0;border:1px solid #dce2d8;border-radius:7px;padding:10px;font:13px/1.4 Inter,-apple-system,BlinkMacSystemFont,\"Segoe UI\",sans-serif}.fh-auth input:first-child{grid-column:span 2}.fh-status{font-size:12px;color:#667464;min-height:20px;margin:0 0 10px}.fh-user{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px}.fh-list{display:grid;gap:8px}.fh-batch{background:#fff;border:1px solid #e3e8df;border-radius:9px;padding:12px}.fh-batch-head{display:flex;justify-content:space-between;align-items:center;gap:12px}.fh-batch-head strong{display:block;font-size:12px}.fh-batch-head small{display:block;margin-top:4px;color:#788274;font-size:10px}.fh-batch details{margin-top:10px}.fh-batch summary{cursor:pointer;color:#667464;font-size:11px}.fh-batch .fh-run{margin-top:8px}.fh-run{background:#fff;border:1px solid #e3e8df;border-radius:9px;padding:12px;display:flex;justify-content:space-between;gap:12px;align-items:center}.fh-run strong{display:block;font-size:12px;overflow-wrap:anywhere}.fh-run small{display:block;margin-top:4px;color:#788274;font-size:10px}.fh-empty{padding:18px;background:#fff;border:1px dashed #ccd5c8;border-radius:9px;color:#6c776a;font-size:12px}.fh-note{font-size:10px;line-height:1.5;color:#7a8578;margin-top:12px}@media(max-width:540px){.fh-batch-head{align-items:flex-start;flex-direction:column}.fh-batch-head .fh-btn{width:100%}.fh-auth{grid-template-columns:1fr}.fh-auth input:first-child{grid-column:auto}.fh-run{align-items:flex-start;flex-direction:column}.fh-run .fh-btn{width:100%}}";
   const style = document.createElement("style");
   style.textContent = css;
   document.head.append(style);
@@ -139,7 +139,7 @@
     const list = document.getElementById("fhRuns");
     if (!client || !user || !list) return;
     const { data, error } = await client.from("prediction_runs")
-      .select("id,created_at,source_filename,model_name,device,image_width,image_height,tile_count,detection_count,confidence_cutoff,image_path,detections")
+      .select("id,created_at,source_filename,model_name,device,image_width,image_height,tile_count,detection_count,confidence_cutoff,image_path,detections,metadata")
       .order("created_at", { ascending: false }).limit(50);
     if (error) {
       list.innerHTML = '<div class="fh-empty">Could not load runs: ' + escapeHtml(error.message) + '</div>';
@@ -151,21 +151,62 @@
       setStatus("Your prediction history is ready.");
       return;
     }
-    list.innerHTML = data.map((run) => {
-      const date = new Date(run.created_at).toLocaleString();
-      const source = run.image_path ? "image saved" : "results saved · source image not stored";
-      const canOpen = Boolean(run.image_path);
-      return '<article class="fh-run"><div><strong>' + escapeHtml(run.source_filename) + '</strong><small>' +
-        escapeHtml(date) + ' · ' + escapeHtml(run.detection_count) + ' detections · ' +
-        escapeHtml(run.device || "device unknown") + ' · ' + escapeHtml(source) +
-        '</small></div><button class="fh-btn ' + (canOpen ? "primary" : "") + '" data-open-run="' +
-        escapeHtml(run.id) + '" ' + (canOpen ? "" : "disabled") + '>' +
-        (canOpen ? "Open run" : "No image") + '</button></article>';
+    const groups = [];
+    for (const run of data) {
+      const batchId = run.metadata?.batch_id;
+      const timestamp = new Date(run.created_at).getTime();
+      const previous = groups[groups.length - 1];
+      const previousRun = previous?.runs[previous.runs.length - 1];
+      const previousTime = previousRun ? new Date(previousRun.created_at).getTime() : 0;
+      const inferred = !batchId && previous && previous.inferred &&
+        previousRun?.device === run.device && previousRun?.model_name === run.model_name &&
+        Math.abs(previousTime - timestamp) <= 60_000;
+      if (batchId && previous?.batchId === batchId) {
+        previous.runs.push(run);
+      } else if (inferred) {
+        previous.runs.push(run);
+      } else {
+        groups.push({ batchId: batchId || null, inferred: !batchId, runs: [run] });
+      }
+    }
+    list.innerHTML = groups.map((group) => {
+      const runs = group.runs;
+      const first = runs[0];
+      const totalDetections = runs.reduce((sum, run) => sum + (Number(run.detection_count) || 0), 0);
+      const date = new Date(first.created_at).toLocaleString();
+      const label = runs.length > 1 ? `${runs.length} images · ${totalDetections} detections` :
+        `${totalDetections} detection${totalDetections === 1 ? "" : "s"}`;
+      const inferredNote = group.inferred && runs.length > 1 ? " · grouped by timing" : "";
+      const items = runs.map((run) => {
+        const source = run.image_path ? "image saved" : "results saved · source image not stored";
+        const canOpen = Boolean(run.image_path);
+        return '<article class="fh-run"><div><strong>' + escapeHtml(run.source_filename) + '</strong><small>' +
+          escapeHtml(new Date(run.created_at).toLocaleTimeString()) + ' · ' + escapeHtml(run.detection_count) + ' detections · ' +
+          escapeHtml(run.device || "device unknown") + ' · ' + escapeHtml(source) +
+          '</small></div><button class="fh-btn ' + (canOpen ? "primary" : "") + '" data-open-run="' +
+          escapeHtml(run.id) + '" ' + (canOpen ? "" : "disabled") + '>' +
+          (canOpen ? "Open run" : "No image") + '</button></article>';
+      }).join("");
+      const canOpenBatch = runs.length > 1 && runs.every((run) => Boolean(run.image_path));
+      return '<section class="fh-batch"><header class="fh-batch-head"><div><strong>' +
+        escapeHtml(runs.length > 1 ? "Prediction batch" : first.source_filename) +
+        '</strong><small>' + escapeHtml(date) + ' · ' + escapeHtml(label) + ' · ' +
+        escapeHtml(first.device || "device unknown") + escapeHtml(inferredNote) +
+        '</small></div>' + (canOpenBatch ? '<button class="fh-btn primary" data-open-batch="' +
+        escapeHtml(first.id) + '">Open batch</button>' : '') + '</header>' +
+        (runs.length > 1 ? '<details><summary>Images in this batch</summary>' + items + '</details>' : items) +
+        '</section>';
     }).join("");
     list.querySelectorAll("[data-open-run]").forEach((button) => {
       if (!button.disabled) button.onclick = () => openRun(data.find((run) => run.id === button.dataset.openRun));
     });
-    setStatus(data.length + " saved run" + (data.length === 1 ? "" : "s") + " · newest first.");
+    list.querySelectorAll("[data-open-batch]").forEach((button) => {
+      button.onclick = () => {
+        const group = groups.find((item) => item.runs[0].id === button.dataset.openBatch);
+        if (group) openBatch(group.runs);
+      };
+    });
+    setStatus(`${data.length} saved image${data.length === 1 ? "" : "s"} · ${groups.length} run${groups.length === 1 ? "" : "s"} · newest first.`);
   }
 
   async function openRun(run) {
@@ -191,7 +232,44 @@
     window.fieldwiseRestoreSavedRun(result, file, run.id);
   }
 
-  async function persistRun(result, file, cutoff) {
+  async function openBatch(runs) {
+    if (!runs?.length || !client || !user) return;
+    const ordered = [...runs].sort((a, b) =>
+      Number(a.metadata?.batch_index ?? 0) - Number(b.metadata?.batch_index ?? 0)
+    );
+    const entries = [];
+    for (let index = 0; index < ordered.length; index += 1) {
+      const run = ordered[index];
+      setStatus(`Loading image ${index + 1} of ${ordered.length}…`);
+      const { data: blob, error } = await client.storage.from(bucket).download(run.image_path);
+      if (error) {
+        setStatus("Could not load the batch image: " + error.message);
+        return;
+      }
+      const file = new File([blob], run.source_filename, { type: blob.type || "image/jpeg" });
+      entries.push({
+        file,
+        runId: run.id,
+        result: {
+          id: run.id,
+          filename: run.source_filename,
+          model: run.model_name,
+          device: run.device,
+          tile_count: run.tile_count,
+          image: { filename: run.source_filename, width: run.image_width, height: run.image_height },
+          detections: run.detections || [],
+        },
+      });
+    }
+    close();
+    if (typeof window.fieldwiseRestoreSavedBatch !== "function") {
+      setStatus("Refresh the field map, then open this batch again.");
+      return;
+    }
+    window.fieldwiseRestoreSavedBatch(entries);
+  }
+
+  async function persistRun(result, file, cutoff, batchInfo = {}) {
     const sessionUser = user;
     if (!sessionUser) return false;
     const runId = crypto.randomUUID();
@@ -224,7 +302,7 @@
       detection_count: detections.length,
       detections,
       image_path: imagePath,
-      metadata: { saved_from: "local_model" },
+      metadata: { saved_from: "local_model", ...batchInfo },
     });
     if (error) {
       if (imagePath) await client.storage.from(bucket).remove([imagePath]);
@@ -239,18 +317,18 @@
   async function flushPending() {
     if (!user || !pending.length) return;
     const queued = pending.splice(0);
-    for (const item of queued) await persistRun(item.result, item.file, item.cutoff);
+    for (const item of queued) await persistRun(item.result, item.file, item.cutoff, item.batchInfo);
   }
 
-  async function saveRun(result, file, cutoff) {
+  async function saveRun(result, file, cutoff, batchInfo = {}) {
     await init();
     if (!user) {
-      pending.push({ result, file, cutoff });
+      pending.push({ result, file, cutoff, batchInfo });
       open();
       setStatus("Sign in to save this completed run. It is held in this page until saved.");
       return false;
     }
-    return persistRun(result, file, cutoff);
+    return persistRun(result, file, cutoff, batchInfo);
   }
 
   async function syncReview(runId, detections) {
