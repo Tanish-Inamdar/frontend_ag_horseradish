@@ -233,7 +233,7 @@
     }
     window.fieldwiseSetCurrentRunId?.(runId);
     toast("Prediction saved to Past runs.");
-    return true;
+    return runId;
   }
 
   async function flushPending() {
