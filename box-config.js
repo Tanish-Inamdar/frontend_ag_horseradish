@@ -1,5 +1,6 @@
-/* Fill these with same-origin server endpoints. Keep Box app secrets on the server. */
+/* Same-origin Vercel routes; all Box credentials and refresh tokens stay server-side. */
 window.FIELDWISE_BOX_CONFIG = {
-  tokenUrl: "",
-  downloadUrl: "",
+  authUrl: "/api/box/auth",
+  tokenUrl: "/api/box/token",
+  downloadUrl: "/api/box/download",
 };
