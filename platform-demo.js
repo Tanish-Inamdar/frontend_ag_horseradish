@@ -179,18 +179,23 @@
 
   async function processBatch() {
     if (!missionId || busy) return;
+    let partial = false;
     busy = true; renderBody();
     try {
       if (processor === "linux") {
         const run = await api(`/api/missions/${missionId}/process`, { method: "POST" });
+        let completedRun = null;
         for (let attempt = 0; attempt < 900; attempt += 1) {
           status(`Linux processing run ${run.id.slice(0, 8)} · checking progress…`);
           await new Promise((resolve) => setTimeout(resolve, 2000));
           const list = await api(`/api/missions/${missionId}/runs`);
           const current = list.find((item) => item.id === run.id);
           if (current) status(`Linux processing ${current.processed_count}/${current.image_count} images · ${current.detection_count} candidates`);
-          if (current && ["completed", "partial", "failed"].includes(current.status)) break;
+          if (current && ["completed", "partial", "failed"].includes(current.status)) { completedRun = current; break; }
         }
+        if (!completedRun) throw new Error("Linux processing has not finished. Refresh the mission to check its run.");
+        if (completedRun.status === "failed") throw new Error(completedRun.error || "Linux model failed.");
+        if (completedRun.status === "partial") { partial = true; status(`Some images failed: ${completedRun.error || "check the run list"}`, true); }
       } else {
         const queued = images.filter((image) => image.status === "queued");
         const batch = queued.map((image) => uploaded.find((entry) => entry.imageId === image.id));
@@ -205,7 +210,8 @@
           method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ results }),
         });
       }
-      await refresh(); status(`Mission processing finished · ${detections.length} saved candidates.`);
+      await refresh();
+      if (!partial) status(`Mission processing finished · ${detections.length} saved candidates.`);
     } catch (error) { status(`Processing failed: ${error.message}`, true); await refresh().catch(() => {}); }
     finally { busy = false; renderBody(); }
   }
