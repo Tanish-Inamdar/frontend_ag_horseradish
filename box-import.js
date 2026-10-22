@@ -85,6 +85,7 @@
         if (!response.ok) throw new Error(`Could not download ${item.name} from Box (${response.status}).`);
         const blob = await response.blob();
         imported[index] = new File([blob], item.name, { type: blob.type || (item.name.toLowerCase().endsWith(".png") ? "image/png" : "image/jpeg"), lastModified: Date.now() });
+        imported[index].boxFileId = item.id;
         status(`Downloaded ${imported.filter(Boolean).length} of ${allowed.length} images…`);
       }
     });

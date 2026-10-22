@@ -24,6 +24,7 @@ function applyLiveConfidenceCutoff() {
   document.getElementById("reviewedMeta").textContent = `of ${liveRecords.length}`;
   document.getElementById("queueNum").textContent = String(pending.length);
   document.getElementById("targetCount").textContent = `${liveRecords.filter((weed) => weed.status === "Verified").length} / ${liveRecords.filter((weed) => weed.status !== "Rejected").length}`;
+  const targetLabel = document.getElementById("targetLabel"); if (targetLabel) targetLabel.textContent = "Approved targets";
   document.getElementById("targetMeta").textContent = "locally approved · not sent";
   document.getElementById("cutoffSummary").textContent = `${pending.length} to review · ${highConfidence} high confidence`;
 
@@ -119,27 +120,25 @@ function updateImageNavigator() {
     nav = document.createElement("div");
     nav.id = "liveImageNavigator";
     nav.className = "liveImageNavigator";
-    nav.innerHTML = '<button type="button" aria-label="Previous image">‹</button><span></span><div class="liveThumbs"></div><button type="button" aria-label="Next image">›</button>';
+    nav.addEventListener("click", (event) => {
+      const control = event.target.closest("[data-image-nav]");
+      if (!control || control.disabled) return;
+      if (control.dataset.imageNav === "previous") showLiveImage(liveImageIndex - 1);
+      if (control.dataset.imageNav === "next") showLiveImage(liveImageIndex + 1);
+      if (control.dataset.imageNav === "select") showLiveImage(Number(control.dataset.imageIndex));
+    });
     document.querySelector(".mapfoot").before(nav);
   }
   nav.hidden = !liveMode || liveImages.length < 2;
   if (nav.hidden) return;
-  nav.querySelector("span").textContent = `Image ${liveImageIndex + 1} of ${liveImages.length}`;
-  nav.querySelector(".liveThumbs").innerHTML = liveImages.map((item, i) => `<button type="button" class="liveThumb ${i === liveImageIndex ? "active" : ""}" data-image-index="${i}" title="${escapeHtml(item.file.name)}"><img src="${item.url}" alt=""><small>${item.result ? "✓" : "!"}</small></button>`).join("");
-  const controls = nav.querySelectorAll(":scope > button");
-  controls[0].disabled = liveImageIndex === 0;
-  controls[1].disabled = liveImageIndex >= liveImages.length - 1;
-  controls[0].onclick = () => showLiveImage(liveImageIndex - 1);
-  controls[1].onclick = () => showLiveImage(liveImageIndex + 1);
-  nav.querySelectorAll("[data-image-index]").forEach((button) => button.onclick = () => showLiveImage(Number(button.dataset.imageIndex)));
+  nav.innerHTML = '<button type="button" data-image-nav="previous" aria-label="Previous image" ' + (liveImageIndex === 0 ? "disabled" : "") + '>‹</button><span>Image ' + (liveImageIndex + 1) + ' of ' + liveImages.length + '</span><div class="liveThumbs">' + liveImages.map((item, i) => '<button type="button" class="liveThumb ' + (i === liveImageIndex ? "active" : "") + '" data-image-nav="select" data-image-index="' + i + '" title="' + escapeHtml(item.file.name) + '"><img src="' + item.url + '" alt=""><small>' + (item.result ? "✓" : "!") + '</small></button>').join("") + '</div><button type="button" data-image-nav="next" aria-label="Next image" ' + (liveImageIndex === liveImages.length - 1 ? "disabled" : "") + '>›</button>';
 }
-
 function showLiveImage(index) {
   if (index < 0 || index >= liveImages.length) return;
   liveImageIndex = index;
   const item = liveImages[index];
   liveResult = item.result || null;
-  liveImageMeta = item.result?.image || { filename: item.file.name, width: 1, height: 1 };
+  liveImageMeta = { filename: item.result?.image?.filename || item.file.name, width: Number(item.result?.image?.width) || 1, height: Number(item.result?.image?.height) || 1 };
   liveImageFile = item.file;
   liveImageUrl = item.url;
   const image = document.getElementById("liveMapImage");
@@ -170,19 +169,28 @@ function applyBatchResults(results, failures, submittedFiles) {
   liveImages.forEach((item, imageIndex) => {
     if (!item.result) return;
     item.result.detections.forEach((detection, detectionIndex) => {
-      const confidence = Math.round(detection.confidence * 100);
+      const width = Math.max(1, Number(item.result.image?.width) || 1);
+      const height = Math.max(1, Number(item.result.image?.height) || 1);
+      const center = detection.center || {};
+      const pixelCenter = detection.pixel_center || {};
+      const px = Number.isFinite(Number(pixelCenter.x)) ? Number(pixelCenter.x) : Number.isFinite(Number(center.x)) ? Number(center.x) * width : width / 2;
+      const py = Number.isFinite(Number(pixelCenter.y)) ? Number(pixelCenter.y) : Number.isFinite(Number(center.y)) ? Number(center.y) * height : height / 2;
+      const rawConfidence = Number(detection.confidence);
+      const confidence = Math.max(0, Math.min(100, Math.round(rawConfidence <= 1 ? rawConfidence * 100 : rawConfidence)));
+      const rawBox = detection.bbox_px || {};
+      const bbox = { x: Number.isFinite(Number(rawBox.x)) ? Number(rawBox.x) : Math.max(0, px - 40), y: Number.isFinite(Number(rawBox.y)) ? Number(rawBox.y) : Math.max(0, py - 40), width: Number.isFinite(Number(rawBox.width)) && Number(rawBox.width) > 0 ? Number(rawBox.width) : 80, height: Number.isFinite(Number(rawBox.height)) && Number(rawBox.height) > 0 ? Number(rawBox.height) : 80 };
       liveRecords.push({
         id: `W-${String(liveRecords.length + 1).padStart(4, "0")}`,
         sourceDetectionId: detection.id,
-        label: detection.class_name,
-        x: detection.center.x * 100,
-        y: detection.center.y * 100,
+        label: detection.class_name || detection.label || "weed",
+        x: Math.max(0, Math.min(100, Number.isFinite(Number(center.x)) ? Number(center.x) * 100 : px / width * 100)),
+        y: Math.max(0, Math.min(100, Number.isFinite(Number(center.y)) ? Number(center.y) * 100 : py / height * 100)),
         c: confidence,
         status: detection.review_status === "Verified" ? "Verified" : detection.review_status === "Rejected" ? "Rejected" : confidence < confidenceCutoff ? "Needs review" : "High confidence",
-        pixelX: detection.pixel_center.x,
-        pixelY: detection.pixel_center.y,
-        bbox: detection.bbox_px,
-        polygon: detection.polygon,
+        pixelX: px,
+        pixelY: py,
+        bbox,
+        polygon: Array.isArray(detection.polygon) ? detection.polygon : [],
         imageIndex,
         detectionIndex,
         runId: item.runId,
@@ -252,6 +260,7 @@ async function submitImage(input) {
   const runButton = document.getElementById("runOnGpu");
   runButton.disabled = true;
   const results = [], failures = [];
+  const batchId = crypto.randomUUID?.() || `batch-${Date.now()}-${Math.random().toString(36).slice(2)}`;
   for (let index = 0; index < files.length; index += 1) {
     const file = files[index];
     runButton.textContent = `${index + 1}/${files.length}…`;
@@ -261,7 +270,7 @@ async function submitImage(input) {
       const result = await processOneImage(file);
       if (!result.model && serverHealth?.model) result.model = serverHealth.model;
       results.push({ file, result });
-      try { const savedRunId = await window.fieldwiseRunHistory?.saveRun(result, file, confidenceCutoff); if (savedRunId) results[results.length - 1].runId = savedRunId; }
+      try { const savedRunId = await window.fieldwiseRunHistory?.saveRun(result, file, confidenceCutoff, { batch_id: batchId, batch_index: index, batch_size: files.length }); if (savedRunId) results[results.length - 1].runId = savedRunId; }
       catch (saveError) { toast("Model completed, but saving failed: " + (saveError.message || "unknown error")); }
     } catch (error) {
       failures.push({ file, error: error.message || "Inference failed." });
@@ -310,6 +319,7 @@ function restoreDemo() {
   document.getElementById("reviewedMeta").textContent = "of 38";
   document.getElementById("queueNum").textContent = "26";
   document.getElementById("targetCount").textContent = "8 / 11";
+  const targetLabel = document.getElementById("targetLabel"); if (targetLabel) targetLabel.textContent = "Robot targets";
   document.getElementById("targetMeta").textContent = "3 remaining";
   document.getElementById("robotLink").innerHTML = '<i class="online"></i>Robot connected';
   document.getElementById("missionSummary").innerHTML = "Mission: <b>Field 7 survey</b>";
@@ -345,6 +355,14 @@ document.getElementById("confidenceCutoff").value = String(confidenceCutoff);
 document.getElementById("confidenceCutoff").onchange = (event) => setConfidenceCutoff(event.target.value);
 window.fieldwiseRunLocalImage = submitImage;
 window.fieldwiseSetCurrentRunId = (runId) => { currentRunId = runId; };
+window.fieldwiseRestoreSavedBatch = (entries) => {
+  const ordered = [...entries].sort((a, b) => (a.batchIndex || 0) - (b.batchIndex || 0));
+  const files = ordered.map((entry) => entry.file);
+  const results = ordered.map((entry) => ({ file: entry.file, result: entry.result, runId: entry.runId }));
+  applyBatchResults(results, [], files);
+  currentRunId = results[0]?.runId || null;
+  toast(`Saved batch opened · ${results.length} images`);
+};
 window.fieldwiseRestoreSavedRun = (result, file, runId) => {
   applyModelResult(result, file);
   currentRunId = runId;
