@@ -42,14 +42,14 @@
 
   function shell() {
     if (!panel) return;
-    panel.innerHTML = `<div class="mc-label">FIELDWISE · LIVE PLATFORM DEMO</div><h1 class="mc-h">Mission server</h1><div class="mc-sub">Keep Box as the source of the images. The Linux server saves this demo's runs, reviews, targets, and robot observations. Use an SSH tunnel from this laptop.</div>
+    panel.innerHTML = `<div class="mc-label">FIELDWISE · LIVE PLATFORM DEMO</div><h1 class="mc-h">Mission server</h1><div class="mc-sub">Keep Box as the source of the images. Run the mission API on Linux through an SSH tunnel, or on this Mac. The selected mission server saves runs, reviews, targets, and robot observations.</div>
       <div class="mc-card"><div class="fp-setup">
-        <label>Linux mission API<input id="fpServer" value="${esc(server)}" spellcheck="false"></label>
+        <label>Mission API · Linux tunnel or Mac<input id="fpServer" value="${esc(server)}" spellcheck="false"></label>
         <label>Mac inference API<input id="fpMac" value="${esc(mac)}" spellcheck="false"></label>
-        <label>Processing computer<select id="fpProcessor"><option value="linux" ${processor === "linux" ? "selected" : ""}>Linux · DINOv3/YOLO</option><option value="mac" ${processor === "mac" ? "selected" : ""}>This Mac · existing model</option></select></label>
+        <label>Processing computer<select id="fpProcessor"><option value="linux" ${processor === "linux" ? "selected" : ""}>Mission server · DINOv3/YOLO</option><option value="mac" ${processor === "mac" ? "selected" : ""}>This Mac · existing model</option></select></label>
         <label>Operator token, if configured<input id="fpToken" type="password" autocomplete="off" placeholder="Optional over local tunnel"></label>
         <button class="mc-btn primary" id="fpConnect">Connect</button>
-      </div><p id="fpStatus" class="fp-status fp-muted">${connected ? "Connected to Linux mission server." : "Connect the Linux SSH tunnel, then click Connect."}</p></div>
+      </div><p id="fpStatus" class="fp-status fp-muted">${connected ? "Connected to mission server." : "Start the mission API locally or open its SSH tunnel, then click Connect."}</p></div>
       <div id="fpBody"></div>`;
     panel.querySelector("#fpToken").value = token;
     panel.querySelector("#fpConnect").onclick = connect;
@@ -66,7 +66,7 @@
       sessionStorage.setItem("fieldwiseMacUrl", mac);
       sessionStorage.setItem("fieldwisePlatformProcessor", processor);
       const health = await api("/api/platform/health");
-      if (health.service !== "fieldwise-platform") throw new Error("This URL is not the Fieldwise Linux mission API.");
+      if (health.service !== "fieldwise-platform") throw new Error("This URL is not the Fieldwise mission API.");
       connected = true;
       await refresh();
       status(`Connected · ${health.engine} model ${health.model_ready ? "ready" : "unavailable"} · robot API ${health.robot_api_configured ? "configured" : "not configured"}`);
@@ -106,7 +106,7 @@
           <p>${selectedFiles.length} image${selectedFiles.length === 1 ? "" : "s"} in Image intake. Box imports appear there after you pick them.</p>
           <div class="fp-line"><button class="mc-btn primary" id="fpUpload" ${!missionId || !selectedFiles.length || busy ? "disabled" : ""}>Copy intake batch to mission</button><button class="mc-btn" id="fpReload" ${busy ? "disabled" : ""}>Refresh</button></div>
           <p class="fp-muted">Original Box files remain in Box. This server keeps demo copies so saved results can reopen later.</p></div>
-        <div class="mc-card"><h3>Processing</h3><p>Selected processor: <b>${processor === "mac" ? "Mac model at " + esc(mac) : "Linux model at " + esc(server)}</b></p>
+        <div class="mc-card"><h3>Processing</h3><p>Selected processor: <b>${processor === "mac" ? "Mac model at " + esc(mac) : "Mission server model at " + esc(server)}</b></p>
           <button class="mc-btn primary" id="fpProcess" ${!missionId || !images.some((image) => image.status === "queued") || busy ? "disabled" : ""}>Process queued images</button>
           <div class="fp-items" style="margin-top:12px">${runs.slice(0, 5).map((run) => `<div class="fp-item"><span><b>Run ${esc(run.id.slice(0, 8))}</b><br><small>${esc(fmt(run.created_at))} · ${run.processed_count}/${run.image_count} images · ${run.detection_count} candidates</small></span><span class="fp-badge ${run.status === "failed" ? "warn" : ""}">${esc(run.status)}</span></div>`).join("") || '<p class="fp-muted">No processing runs yet.</p>'}</div></div></div>
       <div class="mc-grid" style="grid-template-columns:minmax(0,1.3fr) minmax(280px,.7fr);margin-top:12px">
@@ -186,15 +186,15 @@
         const run = await api(`/api/missions/${missionId}/process`, { method: "POST" });
         let completedRun = null;
         for (let attempt = 0; attempt < 900; attempt += 1) {
-          status(`Linux processing run ${run.id.slice(0, 8)} · checking progress…`);
+          status(`Mission processing run ${run.id.slice(0, 8)} · checking progress…`);
           await new Promise((resolve) => setTimeout(resolve, 2000));
           const list = await api(`/api/missions/${missionId}/runs`);
           const current = list.find((item) => item.id === run.id);
-          if (current) status(`Linux processing ${current.processed_count}/${current.image_count} images · ${current.detection_count} candidates`);
+          if (current) status(`Mission processing ${current.processed_count}/${current.image_count} images · ${current.detection_count} candidates`);
           if (current && ["completed", "partial", "failed"].includes(current.status)) { completedRun = current; break; }
         }
-        if (!completedRun) throw new Error("Linux processing has not finished. Refresh the mission to check its run.");
-        if (completedRun.status === "failed") throw new Error(completedRun.error || "Linux model failed.");
+        if (!completedRun) throw new Error("Mission processing has not finished. Refresh the mission to check its run.");
+        if (completedRun.status === "failed") throw new Error(completedRun.error || "Mission server model failed.");
         if (completedRun.status === "partial") { partial = true; status(`Some images failed: ${completedRun.error || "check the run list"}`, true); }
       } else {
         const queued = images.filter((image) => image.status === "queued");
