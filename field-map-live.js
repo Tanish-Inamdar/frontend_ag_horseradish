@@ -7,6 +7,12 @@ let liveImageIndex = 0;
 let currentRunId = null;
 let confidenceCutoff = Number(localStorage.getItem("fieldwiseConfidenceCutoff")) || 70;
 
+function escapeLiveHtml(value) {
+  return String(value ?? "").replace(/[&<>"']/g, (character) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+  }[character]));
+}
+
 function applyLiveConfidenceCutoff() {
   if (!liveMode) return;
   const previousId = selected?.id;
@@ -115,6 +121,19 @@ function fitLiveLayers() {
 }
 
 function updateImageNavigator() {
+  const footerControls = document.getElementById("mapImageControls");
+  if (footerControls) {
+    footerControls.hidden = liveImages.length < 2;
+    if (!footerControls.hidden) {
+      document.getElementById("mapImagePosition").textContent = `Image ${liveImageIndex + 1} of ${liveImages.length}`;
+      const previous = document.getElementById("mapImagePrev");
+      const next = document.getElementById("mapImageNext");
+      previous.disabled = liveImageIndex === 0;
+      next.disabled = liveImageIndex === liveImages.length - 1;
+      previous.onclick = () => showLiveImage(liveImageIndex - 1);
+      next.onclick = () => showLiveImage(liveImageIndex + 1);
+    }
+  }
   let nav = document.getElementById("liveImageNavigator");
   if (!nav) {
     nav = document.createElement("div");
@@ -131,7 +150,7 @@ function updateImageNavigator() {
   }
   nav.hidden = !liveMode || liveImages.length < 2;
   if (nav.hidden) return;
-  nav.innerHTML = '<button type="button" data-image-nav="previous" aria-label="Previous image" ' + (liveImageIndex === 0 ? "disabled" : "") + '>‹</button><span>Image ' + (liveImageIndex + 1) + ' of ' + liveImages.length + '</span><div class="liveThumbs">' + liveImages.map((item, i) => '<button type="button" class="liveThumb ' + (i === liveImageIndex ? "active" : "") + '" data-image-nav="select" data-image-index="' + i + '" title="' + escapeHtml(item.file.name) + '"><img src="' + item.url + '" alt=""><small>' + (item.result ? "✓" : "!") + '</small></button>').join("") + '</div><button type="button" data-image-nav="next" aria-label="Next image" ' + (liveImageIndex === liveImages.length - 1 ? "disabled" : "") + '>›</button>';
+  nav.innerHTML = '<button type="button" data-image-nav="previous" aria-label="Previous image" ' + (liveImageIndex === 0 ? "disabled" : "") + '>‹</button><span>Image ' + (liveImageIndex + 1) + ' of ' + liveImages.length + '</span><div class="liveThumbs">' + liveImages.map((item, i) => '<button type="button" class="liveThumb ' + (i === liveImageIndex ? "active" : "") + '" data-image-nav="select" data-image-index="' + i + '" title="' + escapeLiveHtml(item.file.name) + '"><img src="' + item.url + '" alt=""><small>' + (item.result ? "✓" : "!") + '</small></button>').join("") + '</div><button type="button" data-image-nav="next" aria-label="Next image" ' + (liveImageIndex === liveImages.length - 1 ? "disabled" : "") + '>›</button>';
 }
 function showLiveImage(index) {
   if (index < 0 || index >= liveImages.length) return;
@@ -152,8 +171,9 @@ function showLiveImage(index) {
     ? `${liveImageMeta.filename} · ${liveImageMeta.width.toLocaleString()} × ${liveImageMeta.height.toLocaleString()} px`
     : `${item.file.name} · inference failed`;
   document.getElementById("mapFootLeft").innerHTML = item.error
-    ? `<i class="online" style="background:#c76d5a"></i> Inference failed <span class="footsep">·</span> ${escapeHtml(item.error)}`
+    ? `<i class="online" style="background:#c76d5a"></i> Inference failed <span class="footsep">·</span> ${escapeLiveHtml(item.error)}`
     : `<i class="online"></i> ${liveImages.filter(entry => entry.result).length} images processed <span class="footsep">·</span> viewing ${index + 1} of ${liveImages.length}`;
+  document.getElementById("mapFootRight").textContent = "Processed image";
   document.querySelector(".legend").innerHTML = '<div class="leg"><i class="dot"></i>Needs review (&lt;70%)</div><div class="leg"><i class="dot green"></i>High confidence / verified</div>';
   updateImageNavigator();
   applyLiveConfidenceCutoff();
@@ -294,6 +314,7 @@ function restoreDemo() {
   liveImages = [];
   liveImageIndex = 0;
   document.getElementById("liveImageNavigator")?.remove();
+  document.getElementById("mapImageControls").hidden = true;
   document.getElementById("confidenceCutoffBar").hidden = true;
   if (liveImageUrl) URL.revokeObjectURL(liveImageUrl);
   liveImageUrl = null;
