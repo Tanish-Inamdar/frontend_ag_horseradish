@@ -115,7 +115,7 @@
           <div id="fpViewer" style="margin-top:14px">${current ? "Loading image…" : ""}</div></div>
         <div class="mc-card"><h3>Review candidates</h3><div id="fpReview">Select a processed image.</div></div></div>
       <div class="mc-grid" style="grid-template-columns:repeat(2,minmax(0,1fr));margin-top:12px">
-        <div class="mc-card"><h3>Approved target list</h3><p class="fp-muted">Image pixel positions are for review only. A target is navigation ready only after measured GPS coordinates are entered.</p><div class="fp-items">${targets.map((target) => `<div class="fp-item"><span><b>${esc(target.filename)}</b><br><small>${Math.round(target.center_x * 100)}%, ${Math.round(target.center_y * 100)}% in image</small></span><span class="fp-badge ${target.navigation_ready ? "" : "warn"}">${target.navigation_ready ? "GPS entered" : "Pixel only"}</span></div>`).join("") || '<p class="fp-muted">Confirm a candidate to create a test target.</p>'}</div></div>
+        <div class="mc-card"><div class="mc-row"><h3>Approved target list</h3><button class="mc-btn" id="fpExportTargets" ${targets.length ? "" : "disabled"}>Download CSV</button></div><p class="fp-muted">Image pixel positions are for review only. A target is navigation ready only after measured GPS coordinates are entered.</p><div class="fp-items">${targets.map((target) => `<div class="fp-item"><span><b>${esc(target.filename)}</b><br><small>${Math.round(target.center_x * 100)}%, ${Math.round(target.center_y * 100)}% in image</small></span><span class="fp-badge ${target.navigation_ready ? "" : "warn"}">${target.navigation_ready ? "GPS entered" : "Pixel only"}</span></div>`).join("") || '<p class="fp-muted">Confirm a candidate to create a test target.</p>'}</div></div>
         <div class="mc-card"><h3>Jetson observations</h3><div id="fpRobot">${robotHtml()}</div></div></div>`;
     body.querySelector("#fpMissionSelect").onchange = async (event) => {
       missionId = event.target.value; currentIndex = 0; uploaded = [];
@@ -125,6 +125,7 @@
     body.querySelector("#fpUpload").onclick = uploadBatch;
     body.querySelector("#fpReload").onclick = () => refresh().catch((error) => status(error.message, true));
     body.querySelector("#fpProcess").onclick = processBatch;
+    body.querySelector("#fpExportTargets").onclick = exportTargets;
     body.querySelector("#fpPrev").onclick = () => chooseImage(currentIndex - 1);
     body.querySelector("#fpNext").onclick = () => chooseImage(currentIndex + 1);
     body.querySelectorAll("[data-image-index]").forEach((button) => button.onclick = () => chooseImage(Number(button.dataset.imageIndex)));
@@ -253,6 +254,16 @@
       });
       await refresh(); status(decision === "approved" ? "Candidate approved as a test target." : "Candidate dismissed.");
     } catch (error) { status(error.message, true); }
+  }
+
+  function exportTargets() {
+    if (!targets.length) return;
+    const columns = ["target_id", "detection_id", "source_image", "label", "confidence", "image_x", "image_y", "latitude", "longitude", "coordinate_source", "navigation_ready"];
+    const rows = targets.map((target) => [target.id, target.detection_id, target.filename, target.label, target.confidence, target.center_x, target.center_y, target.latitude, target.longitude, target.coordinate_source, target.navigation_ready]);
+    const csv = [columns, ...rows].map((row) => row.map((value) => {const cell=String(value ?? "");return `"${(/^\s*[=+@-]/.test(cell)?"'":"")}${cell.replaceAll('"', '""')}"`}).join(",")).join("\n");
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    const link = document.createElement("a");link.href = url;link.download = `fieldwise-${missionId}-approved-targets.csv`;link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
   window.fieldwisePlatformRender = (element) => { panel = element; shell(); };

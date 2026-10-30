@@ -326,7 +326,7 @@ function restoreDemo() {
   [image, markers, document.getElementById("maskOverlay")].forEach((layer) => layer.removeAttribute("style"));
   document.querySelector(".maplabel").innerHTML = "<i></i> NORTH BLOCK <span>12.4 ha</span>";
   document.querySelector(".sampletag").textContent = "DEMO DATA";
-  document.getElementById("mapMeta").textContent = "20250710_stitched_300dpi.jpeg · Orthomosaic";
+  document.getElementById("mapMeta").textContent = "Sample reference · add or process mission images";
   document.getElementById("mapFootLeft").innerHTML =
     '<i class="online"></i> Imagery loaded <span class="footsep">·</span> 250 source images';
   document.getElementById("mapFootRight").innerHTML = "Illustrative demo map <b>ⓘ</b>";
@@ -342,13 +342,14 @@ function restoreDemo() {
   document.getElementById("targetCount").textContent = "8 / 11";
   const targetLabel = document.getElementById("targetLabel"); if (targetLabel) targetLabel.textContent = "Robot targets";
   document.getElementById("targetMeta").textContent = "3 remaining";
-  document.getElementById("robotLink").innerHTML = '<i class="online"></i>Robot connected';
+  document.getElementById("robotLink").textContent = "Robot not connected";
   document.getElementById("missionSummary").innerHTML = "Mission: <b>Field 7 survey</b>";
   document.getElementById("visitedTargets").textContent = "8 targets visited";
   document.getElementById("remainingTargets").textContent = "3 remaining";
   document.getElementById("lastSync").textContent = "Last sync 2 min ago";
   setGpuState(gpuReady ? "connected" : "demo", gpuReady ? `Connected · ${modelDeviceLabel(serverHealth.device)}` : "Local model not connected");
   select(selected);
+  window.fieldwiseSyncOverview?.();
   toast("Sample field restored.");
 }
 

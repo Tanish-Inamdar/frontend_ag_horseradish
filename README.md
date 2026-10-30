@@ -1,10 +1,12 @@
 # Fieldwise frontend
 
-A static field operations demo for managing targeted weeding missions, reviewing aerial weed candidates, and inspecting robot outcomes.
+A static field operations demo for managing targeted weeding missions, reviewing aerial weed candidates, and inspecting robot outcomes. The workspace has five main areas: Missions, Images & processing, Weed map & review, Robot, and Results.
 
 ## Run locally
 
 Open `index.html` in a browser. Mission state and review corrections are stored in that browser's local storage.
+
+The overview follows the active browser mission. New missions start with an empty image batch, and the illustrated map is labeled as a sample reference. For a saved mission run, use **Image intake → Live processing** to connect the local mission server, upload a batch, run its model, review detections, and download approved targets. The live server keeps its own mission records.
 
 The workspace includes:
 
